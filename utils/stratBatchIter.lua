@@ -1,7 +1,7 @@
 function stratBatchIter(targets, approxBatchsize)
 	local T = targets:clone()+torch.randn(targets:size()):typeAs(targets)*0.001 -- add some jitter for randomness
 	local nbatch = torch.floor(T:size(1) / approxBatchsize)
-  local batchIds = torch.zeros(T:size())
+	local batchIds = torch.zeros(T:size())
 
 	-- index of sorted elements
 	local _, ind = torch.sort(T)
@@ -27,11 +27,11 @@ function stratBatchIter(targets, approxBatchsize)
 
 	-- return iterator, which yields a bytetensor for addressing data
 	local batchIndex = 0
-		return function()
-			batchIndex = batchIndex + 1
-			if batchIndex <= nbatch then
-				-- the return tensor can be used for addressing
-			  return torch.LongTensor(batches[batchIndex])
-			end
+	return function()
+		batchIndex = batchIndex + 1
+		if batchIndex <= nbatch then
+			-- the return tensor can be used for addressing
+			return torch.LongTensor(batches[batchIndex])
 		end
+	end
 end
