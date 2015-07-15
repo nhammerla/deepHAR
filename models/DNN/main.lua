@@ -34,6 +34,8 @@ cmd:option('-maxInNorm',              3,      'Max-in-norm for regularisation')
 cmd:option('-patience',               10,     'Patience in early stopping')
 cmd:option('-minEpoch',               30,     'Minimum number of epochs before check for convergence')
 cmd:option('-maxEpoch',               150,    'Stop after this number of epochs even if not converged')
+cmd:option('-ignore',                 false,  'Is there a class we should ignore?')
+cmd:option('-ignoreClass',            0,      'Class to ignore for analysis')
 
 cmd:text()
 
