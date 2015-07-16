@@ -35,23 +35,24 @@ data = {}
 data.training = {}      -- will hold input, targets, subjectIds
 data.test = {}          -- will hold input, targets, subjectIds
 data.validation = {}    -- will hold input, targets, subjectIds
+data.classes = {'ASLEEP', 'OFF', 'ON', 'DYS'}
 
 -- training data is first 5 days of each patient
 local d = rawData.day_data[{{},{},{1,5}}]:reshape(rawData.day_data:size(1), rawData.day_data:size(2)*5):t()
 data.training.inputs = d[{{},{1,-3}}]
-data.training.targets = d[{{},-2}]
+data.training.targets = d[{{},-2}]:add(1)
 data.training.subjectIds = d[{{},-1}]
 
 -- validation data is 6th day of all patients
 local d = rawData.day_data[{{},{},{6}}]:reshape(rawData.day_data:size(1), rawData.day_data:size(2)):t()
 data.validation.inputs = d[{{},{1,-3}}]
-data.validation.targets = d[{{},-2}]
+data.validation.targets = d[{{},-2}]:add(1)
 data.validation.subjectIds = d[{{},-1}]
 
 -- test data is the 7th day of all patients
 local d = rawData.day_data[{{},{},{7}}]:reshape(rawData.day_data:size(1), rawData.day_data:size(2)):t()
 data.test.inputs = d[{{},{1,-3}}]
-data.test.targets = d[{{},-2}]
+data.test.targets = d[{{},-2}]:add(1)
 data.test.subjectIds = d[{{},-1}]
 
 if params.normalise == true then
