@@ -2,11 +2,12 @@ require 'torch'
 
 local model_utils = {}
 
-function model_utils.combine_all_parameters(...)
+function model_utils.combine_all_parameters(networks)
     --[[ like module:getParameters, but operates on many modules ]]--
 
     -- get parameters
-    local networks = {...}
+    -- local networks = {...}
+
     local parameters = {}
     local gradParameters = {}
     for i = 1, #networks do
