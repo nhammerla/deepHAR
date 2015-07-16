@@ -12,9 +12,9 @@ function LSTM.lstm(opt)
     -- function that spits out newly allocated blocks for building our graph
     function new_input_sum()
         -- transforms input
-        local i2h = nn.Linear(opt.rnn_size, opt.rnn_size)(x)
+        local i2h = nn.Linear(opt.layerSize, opt.layerSize)(x)
         -- transforms previous timestep's output
-        local h2h = nn.Linear(opt.rnn_size, opt.rnn_size)(prev_h)
+        local h2h = nn.Linear(opt.layerSize, opt.layerSize)(prev_h)
         -- componentwise addition layer
         return nn.CAddTable()({i2h, h2h})
     end
