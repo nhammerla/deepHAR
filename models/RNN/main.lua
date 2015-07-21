@@ -66,6 +66,7 @@ cmd:log(params.logdir .. '/log', params)
 -- preliminaries
 torch.manualSeed(params.seed)
 torch.setnumthreads(16)
+cutorch.setDevice(params.gpu)
 epochPerformance = {} -- table to store progress
 
 -- Read in data-set and (maybe) store on GPU
