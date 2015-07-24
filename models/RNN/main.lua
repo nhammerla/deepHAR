@@ -51,6 +51,9 @@ cmd:text()
 -- parse input params
 params = cmd:parse(arg)
 
+-- set gpu already here
+cutorch.setDevice(params.gpu)
+
 -- parse possible weights for classes
 if params.classWeights:len() > 0 then
     params.weights = {}
@@ -66,7 +69,6 @@ cmd:log(params.logdir .. '/log', params)
 -- preliminaries
 torch.manualSeed(params.seed)
 torch.setnumthreads(16)
-cutorch.setDevice(params.gpu)
 epochPerformance = {} -- table to store progress
 
 -- Read in data-set and (maybe) store on GPU
@@ -349,6 +351,8 @@ function train(data, labels)
 
             -- clip gradient element-wise
             --grad_params:clamp(-5, 5)
+
+            --cutorch.synchronize()
 
             return loss, grad_params
         end
