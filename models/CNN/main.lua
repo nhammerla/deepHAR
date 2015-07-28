@@ -44,6 +44,9 @@ cmd:option('-minEpoch',               30,     'Minimum number of epochs before c
 cmd:option('-maxEpoch',               150,    'Stop after this number of epochs even if not converged')
 cmd:option('-ignore',                 false,  'Is there a class we should ignore?')
 cmd:option('-ignoreClass',            0,      'Class to ignore for analysis')
+cmd:option('-imbalanced',             false,  'Is the data-set imbalanced? Creates balanced batches with repitition (Two class only)')
+cmd:option('-classWeights',           '',     'Weights of classes')
+cmd:option('-expand',                 false,  'Expand input data with normalised dim')
 
 cmd:text()
 
@@ -57,6 +60,7 @@ cmd:log(params.logdir .. '/log', params)
 -- preliminaries
 torch.manualSeed(params.seed)
 cutorch.setDevice(params.gpu)
+cutorch.manualSeed(params.seed, params.gpu)
 torch.setnumthreads(16)
 epochPerformance = {} -- table to store progress
 testPerformance = {} -- table to store progress
@@ -72,12 +76,35 @@ end
 data = torch.load(params.data)
 
 -- check if data has the right dimensions
-if data.dim == 2 then
+if data.training.inputs:dim() == 2 then
     -- just two -> put in third 'empty' dimension
-    data.training.inputs = data.training.inputs:view(data.training.inputs:size(1), data.training.inputs:size(2), 1)
-    data.validation.inputs = data.validation.inputs:view(data.validation.inputs:size(1), data.validation.inputs:size(2), 1)
-    data.test.inputs = data.test.inputs:view(data.test.inputs:size(1), data.test.inputs:size(2), 1)
+    data.training.inputs = data.training.inputs:reshape(data.training.inputs:size(1), data.training.inputs:size(2), 1)
+    data.validation.inputs = data.validation.inputs:reshape(data.validation.inputs:size(1), data.validation.inputs:size(2), 1)
+    data.test.inputs = data.test.inputs:reshape(data.test.inputs:size(1), data.test.inputs:size(2), 1)
 end
+
+-- IGNORE THIS FUNCTION FOR NOW
+if params.expand then
+    -- add an absolute
+    local scale = function(data)
+--        data:add(-data:min(2):expandAs(data)):cdiv(data:max(2):add(-data:min(2)):expandAs(data))--:mul(2):add(-1)
+        data:add(-data:mean(2):expandAs(data)):cdiv(data:std(2):expandAs(data))
+        return data
+    end
+    local expand = function(data)
+        local D = torch.zeros(data:size(1), data:size(2), data:size(3)+1)
+        D[{{},{},1}] = data[{{},{},1}]
+        D[{{},{},2}] = scale(data[{{},{},1}])
+        return D
+    end
+    data.training.inputs = expand(data.training.inputs)
+    data.test.inputs = expand(data.test.inputs)
+    data.validation.inputs = expand(data.validation.inputs)
+end
+
+print(data.training.inputs:size())
+print(data.training.inputs[{{1},{},1}])
+print(data.training.inputs[{{1},{},2}])
 
 -- put data on gpu
 data.training.inputs = data.training.inputs:cuda()
@@ -87,40 +114,37 @@ data.validation.inputs = data.validation.inputs:cuda()
 -- define model
 model = nn.Sequential()
 local dim -- store last dim of layer before
-local nf
 -- we use facebook's temporal convolution
 model:add(nn.TemporalConvolutionFB(data.training.inputs:size(3), params.nF1, params.kW1, 1))
 dim = (data.training.inputs:size(2) - params.kW1) + 1
 nf = params.nF1
+
 --model:add(nn.Dropout(0.1))
 model:add(nn.TemporalMaxPooling(params.mW1,params.mW1))
 model:add(nn.ReLU())
 model:add(nn.Dropout(params.dropout1))
 
 dim = torch.floor((dim-params.mW1)/params.mW1+1)
-
 -- check if we need to add another layer
 if params.numConv > 1 then
     model:add(nn.TemporalConvolutionFB(params.nF1, params.nF2, params.kW2, 1))
     dim = (dim - params.kW2) + 1
-    nf = params.nf2
+    nf = params.nF2
     model:add(nn.TemporalMaxPooling(params.mW2,params.mW2))
     model:add(nn.ReLU())
     model:add(nn.Dropout(params.dropout2))
     dim = torch.floor((dim - params.mW2)/params.mW2+1)
 end
-
 -- check if we need to add another layer
 if params.numConv > 2 then
     model:add(nn.TemporalConvolutionFB(params.nF2, params.nF3, params.kW3, 1))
     dim = (dim - params.kW3) + 1
-    nf = params.nf3
+    nf = params.nF3
     model:add(nn.TemporalMaxPooling(params.mW3,params.mW3))
     model:add(nn.ReLU())
     model:add(nn.Dropout(params.dropout3))
     dim = torch.floor((dim - params.mW3)/params.mW3+1)
 end
-
 -- fully connected part
 model:add(nn.Reshape(dim*nf, true))
 model:add(nn.Linear(dim*nf, params.layerSize))
@@ -147,20 +171,24 @@ parameters, gradParameters = model:getParameters()
 parameters:uniform(-0.08,0.08)
 
 -- helper functions
+batchIter = stratBachIter
+if params.imbalanced then
+    batchIter = stratBatchIterRepeated
+end
 
 -- max in norm
 renormW = function(mod)
     -- rescale to incoming 2-norm of maxInNorm for each hidden unit
-    local params = mod:parameters()
+    local par = mod:parameters()
 
     -- skip layers without parameters (e.g. ReLU())
-    if not params then
+    if not par then
         return
     end
-    for i,param in pairs(params) do
-        if param:dim() > 1 then
+    for i,p in pairs(par) do
+        if p:dim() > 1 then
             -- layer weights
-            param:renorm(2,param:dim(),maxInNorm)
+            p:renorm(2,p:dim(),params.maxInNorm)
         end
     end
 end
@@ -168,8 +196,8 @@ end
 local checkConvergence = function(epoch, win)
     -- check for convergence over last win epochs (on validation set)
     for p=(epoch-win+1),epoch do
-        if (epochPerformance[p].TP+epochPerformance[p].TN) >
-           (epochPerformance[epoch-win].TP+epochPerformance[epoch-win].TN) then
+        if (epochPerformance[p].meanF1score) >
+           (epochPerformance[epoch-win].meanF1score) then
            -- if performance has increased relatively to last epoch at least once,
            -- then we have not converged!
            return false
@@ -192,13 +220,13 @@ function train(data, labels)
 
    -- do one epoch
    print('<trainer> on training set:')
-   print("<trainer> online epoch # " .. epoch .. ' [batchSize = ' .. batchSize .. ']')
+   print("<trainer> online epoch # " .. epoch .. ' [batchSize = ' .. params.batchSize .. ']')
 
-   local nbatch = torch.floor(data:size(1) / batchSize)
+   local nbatch = torch.floor(data:size(1) / params.batchSize)
    local cnt = 1
 
    -- cycle through stratified batches
-   for batchIndex in stratBatchIter(labels, batchSize) do
+   for batchIndex in batchIter(labels, params.batchSize) do
 
       -- create mini batch
       local inputs = data:index(1,batchIndex):view(batchIndex:size(1),data:size(2),data:size(3))
@@ -225,7 +253,7 @@ function train(data, labels)
          local df_do = criterion:backward(outputs, targets:view(targets:size(1)))
 
          if params.weights then
-             df_do:cmul(weights:expandAs(df_do))
+             df_do:cmul(params.weights:expandAs(df_do))
          end
 
          -- backpropagate
@@ -261,7 +289,7 @@ function train(data, labels)
    epoch = epoch + 1
 end
 
-function test(data, labels, testing)
+function test(data, labels, classes, testing)
    -- local vars
    local time = sys.clock()
    local confusion = optim.ConfusionMatrix(classes)
@@ -272,10 +300,10 @@ function test(data, labels, testing)
 
    -- test over given data
    print('<trainer> on testing Set:')
-    local nbatch = torch.floor(labels:size(1) / batchSize)
+    local nbatch = torch.floor(labels:size(1) / params.batchSize)
     local cnt = 1
 
-   for batchIndex in stratBatchIter(labels:view(labels:size(1)), batchSize) do
+   for batchIndex in batchIter(labels:view(labels:size(1)), params.batchSize) do
       -- disp progress
       xlua.progress(cnt, nbatch)
 
@@ -308,6 +336,7 @@ function test(data, labels, testing)
 
    local perf = {}
    perf.confusion = confusion
+   perf.meanF1score = meanF1score(confusion)
    perf.TN = confusion.mat[1][1] / confusion.mat[1]:sum()
    perf.TP = confusion.mat[2][2] / confusion.mat[2]:sum()
 
@@ -326,9 +355,9 @@ progress.epochPerformance = epochPerformance
 progress.testPerformance = testPerformance
 
 for e=1,params.maxEpoch do
-    train(D.train_data, D.train_labels)
-    local score = test(D.val_data, D.val_labels, false)
-    test(D.test_data, D.test_labels, true)
+    train(data.training.inputs, data.training.targets)
+    local score = test(data.validation.inputs, data.validation.targets, data.classes, false)
+    test(data.test.inputs, data.test.targets, data.classes, true)
 
     if score > best then
         best = score
