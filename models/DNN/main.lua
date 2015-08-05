@@ -1,52 +1,58 @@
--- --[[
--- main file to train a deep neural network.
--- run as:
--- >> th main.lua -data mydata.dat
--- to see additional parameters:
--- >> th main.lua --help
--- --]]
+--[[
+main file to train a deep neural network.
+run as:
+>> th main.lua -data mydata.dat
+to see additional parameters:
+>> th main.lua --help
+]]
 
--- require 'cutorch'
--- require 'cunn'
+require 'cunn'
+require 'nn'
+require 'cutorch'
+require 'stratBatchIter'
+require 'meanF1score'
+require 'optim'
 
--- cmd = torch.CmdLine()
--- cmd:text()
--- cmd:text()
--- cmd:text('Deep neural network for HAR')
--- cmd:text()
--- cmd:text('Options')
--- cmd:option('-seed',                   123,    'initial random seed')
--- cmd:option('-logdir',                 'exp',  'path to store model progress, results, and log file')
--- cmd:option('-data',                   '',     'data-set to run on (DP datasource)')
--- cmd:option('-gpu',                    0,      'GPU to run on (default: 0)')
--- cmd:option('-cpu',                    false,  'Run on CPU')
--- cmd:option('-numLayers',              1,      'Number of hidden layers')
--- cmd:option('-layerSize',              512,    'Number of units in hidden layers')
--- cmd:option('-learningRate',           0.5,    'Learning rate')
--- cmd:option('-batchSize',              64,     'Batch-size')
--- cmd:option('-dropout',                0.5,    'Dropout')
+
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text()
+cmd:text('Deep neural network for HAR')
+cmd:text()
+cmd:text('Options')
+cmd:option('-seed',                   123,    'initial random seed')
+cmd:option('-logdir',                 'exp',  'path to store model progress, results, and log file')
+cmd:option('-data',                   'opp1.dat',     'data-set to run on (DP datasource)')
+cmd:option('-gpu',                    1,      'GPU to run on (default: 1)') -- NOTE:1
+cmd:option('-cpu',                    false,  'Run on CPU')
+cmd:option('-numLayers',              1,      'Number of hidden layers')
+cmd:option('-layerSize',              512,    'Number of units in hidden layers')
+cmd:option('-learningRate',           0.5,    'Learning rate')
+cmd:option('-batchSize',              64,     'Batch-size')
+cmd:option('-dropout',                0.5,    'Dropout')
 -- cmd:option('-momentum',               0.9,    'Momentum')
 -- cmd:option('-learningRateDecay',      5e-4,   'Learning rate decay')
 -- cmd:option('-maxInNorm',              3,      'Max-in-norm for regularisation')
 -- cmd:option('-patience',               10,     'Patience in early stopping')
--- cmd:option('-minEpoch',               30,     'Minimum number of epochs before check for convergence')
--- cmd:option('-maxEpoch',               150,    'Stop after this number of epochs even if not converged')
+cmd:option('-minEpoch',               30,     'Minimum number of epochs before check for convergence')
+cmd:option('-maxEpoch',               150,    'Stop after this number of epochs even if not converged')
 -- cmd:option('-ignore',                 false,  'Is there a class we should ignore?')
 -- cmd:option('-ignoreClass',            0,      'Class to ignore for analysis')
 
--- cmd:text()
+cmd:text()
 
--- -- parse input params
--- params = cmd:parse(arg)
+-- parse input params
+params = cmd:parse(arg)
 
--- params.rundir = cmd:string(params.logdir, params, {dir=true})
--- paths.mkdir(params.rundir)
+-- FOR CREATING LOG FILE
+params.rundir = cmd:string(params.logdir, params, {dir=true})
+paths.mkdir(params.rundir)
 
 -- -- create log file
--- cmd:log(params.rundir .. '/log', params)
+cmd:log(params.rundir .. '/log', params)
 
 -- -- Read in data-set and (maybe) store on GPU
-
+data = torch.load(data)
 -- -- Define model
 
 -- -- helper functions
@@ -61,21 +67,6 @@
 
 -- -- done!
 
-params={}
-params.numLayers = 1
-params.layerSize = 512
-params.dropout=0.5
-params.cpu = false
-params.seed=123
-params.gpu= 1
-params.batchSize = 64
-params.maxEpoch=25
-params.learningRate = 0.5
-require 'cunn'
-require 'nn'
-require 'cutorch'
-
-data = torch.load('opp1.dat' )
 inputLayerSize = data.training.inputs:size(2)*data.training.inputs:size(3)
 outputSize = #data.classes
 
@@ -149,18 +140,17 @@ hasConverged = function(epoch_loss_values_list, n)
 	end
 end
 
+epochCounter = 1
 epoch_loss_values_list = {}
-
-require 'stratBatchIter'
-require 'meanF1score'
+bestPerformance = 0
 
 for epochNumber=1,params.maxEpoch do
 	converged = hasConverged(epoch_loss_values_list,10)
-	if converged then
+	if converged and not epochNumber<params.minEpoch then
 		break
 	else
 		--EPOCH BEGINS HERE
-		print('Training epoch '..epochNumber)
+		--print('Training epoch '..epochNumber)
 		--TRAINING PHASE OF EPOCH
 		batchCounter = 1
 		net:training()
@@ -188,13 +178,14 @@ for epochNumber=1,params.maxEpoch do
 			net:backward(batchInputs, gradCriterion)
 			net:updateParameters(params.learningRate)
 
-			xlua.progress(batchCounter, nbatch)
-			batchCounter = batchCounter + 1
+			--xlua.progress(batchCounter, nbatch)
+			--batchCounter = batchCounter + 1
 		end
 		--TESTING PHASE OF EPOCH
 		--in this epoch, construct the confusion matrix
-		print('testing epoch...')
-		require 'optim'
+		
+		--print('Testing epoch...')
+		
 		cmatrix = optim.ConfusionMatrix(data.classes)
 		cmatrix:zero()
 
@@ -208,19 +199,28 @@ for epochNumber=1,params.maxEpoch do
 			testBatchPredictions:cdiv(testBatchPredictions:sum(2):expandAs(testBatchPredictions)) -- divide by sum
 
 			--modify confusion matrix...
-			--cmatrix:batchAdd(testBatchPredictions, testBatchTargets)
-			--TRY GOING THROUGH IT INDIVIDUALLY INSTEAD!!
+			--cmatrix:batchAdd(testBatchPredictions, testBatchTargets)--batchAdd doesn't work?
+			--TRY GOING THROUGH IT INDIVIDUALLY INSTEAD...
 			for i=1,testBatchPredictions:size(1) do
 				cmatrix:add(testBatchPredictions[i], testBatchTargets[i])
 			end
 		end
 
 		epochPerformance = meanF1score(cmatrix)
-		print('epoch performance ' .. epochPerformance)
+		--print('epoch performance ' .. epochPerformance)
 		table.insert(epoch_loss_values_list, epochPerformance)
+
+		--check if this is the best performance so far,
+		-- and if so, then save the net to a file...
+		if epochPerformance>bestPerformance then
+			bestPerformance = epochPerformance
+			torch.save(params.logdir .. '/model.dat',net)
+		end
 
 		--EPOCH ENDS HERE
 	end
+	xlua.progress(epochCounter, params.maxEpoch)
+	epochCounter = epochCounter+1
 end
 print(cmatrix)
 print(epoch_loss_values_list)
