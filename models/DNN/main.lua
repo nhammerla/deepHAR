@@ -85,9 +85,37 @@ function data.training:size()
     return self.inputs:size(1) 
 end
 
+--rescale: subtract mean and divide by standard deviation:
+mean = {}
+stdv = {}
+
+--For training set:
+for i=1,data.training.inputs:size(3) do -- over all our variables
+	mean[i] = data.training.inputs[{ {},{},{i} }]:mean() -- calculate mean of variable i
+	print('Feature ' .. i .. ', Mean: ' .. mean[i]) -- print this mean
+	data.training.inputs[{ {},{},{1} }]:add(-mean[i]) -- subtract this mean from variable values
+	stdv[i] = data.training.inputs[{ {},{},{i} }]:std() -- std estimation
+	print('Feature ' .. i .. ', Standard Deviation: ' .. stdv[i]) -- print this standard dev
+	data.training.inputs[{ {},{},{1} }]:div(stdv[i])
+end
+
+--For val set:
+for i=1,data.training.inputs:size(3) do
+	data.validation.inputs[{ {},{},{i} }]:add(-mean[i]) -- subtract VALIDATION means from test set
+	data.validation.inputs[{ {},{},{i} }]:div(stdv[i]) -- divide VALIDATION by training stdvs
+end
+--For test set:
+for i=1,data.training.inputs:size(3) do
+	data.test.inputs[{ {},{},{i} }]:add(-mean[i]) -- subtract training means from test set
+	data.test.inputs[{ {},{},{i} }]:div(stdv[i]) -- divide testset by training stdvs
+end
+
 net = nn.Sequential()
 
 --data.training.inputs = nn.Reshape(data.training.inputs:size(2)*data.training.inputs:size(3)):forward(data.training.inputs)
+
+
+
 
 --double-check inputLayerSize
 net:add(nn.Reshape(data.training.inputs:size(2)*data.training.inputs:size(3)))
@@ -102,6 +130,7 @@ net:add(nn.Linear(params.layerSize, outputSize))
 net:add(nn.LogSoftMax())
 
 criterion = nn.ClassNLLCriterion(torch.ones(18))
+--criterion = nn.ClassNLLCriterion()
 
 if params.cpu==false then
 	--criterion = 
@@ -206,6 +235,7 @@ for epochNumber=1,params.maxEpoch do
 
 		--print('Testing epoch...')
 		
+		net:evaluate()
 		cmatrix = optim.ConfusionMatrix(data.classes)
 		cmatrix:zero()
 
@@ -227,7 +257,7 @@ for epochNumber=1,params.maxEpoch do
 		end
 
 		epochPerformance = meanF1score(cmatrix)
-		--print('epoch performance ' .. epochPerformance)
+		print('epoch'.. epochCounter .. ' performance ' .. epochPerformance)
 		table.insert(epoch_loss_values_list, epochPerformance)
 
 		--check if this is the best performance so far,
@@ -244,8 +274,3 @@ for epochNumber=1,params.maxEpoch do
 end
 print()
 print(cmatrix)
-print(epoch_loss_values_list)
-
-
-
-
