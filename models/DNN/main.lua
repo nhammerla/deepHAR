@@ -27,11 +27,11 @@ cmd:option('-gpu',                    1,      'GPU to run on (default: 1)') -- N
 cmd:option('-cpu',                    false,  'Run on CPU')
 cmd:option('-numLayers',              1,      'Number of hidden layers')
 cmd:option('-layerSize',              512,    'Number of units in hidden layers')
-cmd:option('-learningRate',           0.5,    'Learning rate')
+cmd:option('-learningRate',           0.0001,    'Learning rate')
 cmd:option('-batchSize',              64,     'Batch-size')
 cmd:option('-dropout',                0.5,    'Dropout')
---cmd:option('-momentum',               0.9,    'Momentum')
--- cmd:option('-learningRateDecay',      5e-4,   'Learning rate decay')
+cmd:option('-momentum',               0.9,    'Momentum')
+cmd:option('-learningRateDecay',      5e-4,   'Learning rate decay')
 cmd:option('-maxInNorm',              3,      'Max-in-norm for regularisation')
 cmd:option('-patience',               10,     'Patience in early stopping')
 cmd:option('-minEpoch',               30,     'Minimum number of epochs before check for convergence')
@@ -99,6 +99,8 @@ for i=1,data.training.inputs:size(3) do -- over all our variables
 	data.training.inputs[{ {},{},{1} }]:div(stdv[i])
 end
 
+-- data.training.inputs:add(mean:expandAs(data.training.inputs)):cdiv(stdv:expandAs(data.training.inputs))
+
 --For val set:
 for i=1,data.training.inputs:size(3) do
 	data.validation.inputs[{ {},{},{i} }]:add(-mean[i]) -- subtract VALIDATION means from test set
@@ -110,7 +112,7 @@ for i=1,data.training.inputs:size(3) do
 	data.test.inputs[{ {},{},{i} }]:div(stdv[i]) -- divide testset by training stdvs
 end
 
-net = nn.Sequential()
+model = nn.Sequential()
 
 --data.training.inputs = nn.Reshape(data.training.inputs:size(2)*data.training.inputs:size(3)):forward(data.training.inputs)
 
@@ -118,16 +120,16 @@ net = nn.Sequential()
 
 
 --double-check inputLayerSize
-net:add(nn.Reshape(data.training.inputs:size(2)*data.training.inputs:size(3)))
+model:add(nn.Reshape(data.training.inputs:size(2)*data.training.inputs:size(3)))
 layerToAdd = nn.Linear(inputLayerSize, params.layerSize)
-net:add(layerToAdd)
-net:add(nn.Dropout(dropout))
-net:add(nn.ReLU())
+model:add(layerToAdd)
+model:add(nn.Dropout(dropout))
+model:add(nn.ReLU())
 
 -- Output Layer
 outputSize = #data.classes
-net:add(nn.Linear(params.layerSize, outputSize))
-net:add(nn.LogSoftMax())
+model:add(nn.Linear(params.layerSize, outputSize))
+model:add(nn.LogSoftMax())
 
 criterion = nn.ClassNLLCriterion(torch.ones(18))
 --criterion = nn.ClassNLLCriterion()
@@ -138,10 +140,10 @@ if params.cpu==false then
 	data.training.inputs = data.training.inputs:cuda()
 	data.test.inputs = data.test.inputs:cuda()
 	data.validation.inputs = data.validation.inputs:cuda()
-	net:cuda()
+	model:cuda()
 end
 
-parameters, gradParameters = net:getParameters()
+parameters, gradParameters = model:getParameters()
 parameters:uniform(-0.08,0.08)
 
 renormW = function(mod)
@@ -198,44 +200,104 @@ for epochNumber=1,params.maxEpoch do
 		--print('Training epoch '..epochNumber)
 		--TRAINING PHASE OF EPOCH
 		batchCounter = 1
-		net:training()
+		model:training()
 		nbatch = torch.floor(data.training.targets:size(1) / params.batchSize)
+
+		local trconf = optim.ConfusionMatrix(data.classes)
+
 		for batchIndex in stratBatchIter(data.training.targets, params.batchSize) do
 			local batchInputs = data.training.inputs:index(1, batchIndex)
 			local batchTargets = data.training.targets:index(1,batchIndex)
 			if params.cpu == false then
 				batchTargets = batchTargets:cuda()
 			end
-			local batchPredictions = net:forward(batchInputs)
-			--print(batchPredictions)
 
-			-- WHAT DO THESE 4 LINES OF CODE DO?
-			--criterion:forward(batchPredictions, batchTargets)
-			--net:zeroGradParameters()
-			--net:backward(batchInputs, criterion:backward(net.output, batchTargets))
-			--net:updateParameters(0.01)
+			--BEGIN SHANE'S TRAINING PART
+			-- model:zeroGradParameters()
 
-			--print(batchTargets)
+			-- local batchPredictions = model:forward(batchInputs)
+			-- --print(batchPredictions)
 
-			err = criterion:forward(batchPredictions, batchTargets)
-			gradCriterion = criterion:backward(batchPredictions, batchTargets)
-			net:zeroGradParameters()
-			net:backward(batchInputs, gradCriterion)
-			net:updateParameters(params.learningRate)
+			-- -- WHAT DO THESE 4 LINES OF CODE DO?
+			-- --criterion:forward(batchPredictions, batchTargets)
+			-- --model:zeroGradParameters()
+			-- --model:backward(batchInputs, criterion:backward(model.output, batchTargets))
+			-- --model:updateParameters(0.01)
+
+			-- --print(batchTargets)
+			
+
+			-- local loss = criterion:forward(batchPredictions, batchTargets)
+			-- gradCriterion = criterion:backward(batchPredictions, batchTargets)
+			
+			-- model:backward(batchInputs, gradCriterion)
+
+			-- model:updateParameters(params.learningRate)
+
+			--END SHANE'S TRAINING PART
+			--BEGIN NILS' ALTERNATIVE
+
+			-- create closure to evaluate f(X) and df/dX
+		      local feval = function(x)
+		         -- just in case:
+		         collectgarbage()
+
+		         -- get new parameters
+		         if x ~= parameters then
+		            parameters:copy(x)
+		         end
+
+		         -- reset gradients
+		         gradParameters:zero()
+
+		         -- evaluate function for complete mini batch
+		         local batchPredictions = model:forward(batchInputs)
+		         local f = criterion:forward(batchPredictions, batchTargets:view(batchTargets:size(1)))
+
+		         -- estimate df/dW
+		         local df_do = criterion:backward(batchPredictions, batchTargets:view(batchTargets:size(1)))
+
+		         if params.weights then
+		             df_do:cmul(params.weights:expandAs(df_do))
+		         end
+
+		         -- backpropagate
+		         model:backward(batchInputs, df_do)
+
+		         -- return f and df/dX
+		         return f,gradParameters
+		     end
+
+		     sgdState = sgdState or {
+		        learningRate = params.learningRate,
+		        momentum = params.momentum,
+		        learningRateDecay = params.learningRateDecay
+		     }
+
+		     optim.sgd(feval, parameters, sgdState)
+		     -- END NILS' ALTERNATIVE
 
 			-- renormalise weights
-     		for i,mod in ipairs(net.modules) do
+     		for i,mod in ipairs(model.modules) do
        			renormW(mod)
      		end
+
+     		--print(loss)	
+
+     		-- for i=1,batchPredictions:size(1) do
+     		-- 	trconf:add(batchPredictions[i], batchTargets[i])
+     		-- end
 			--xlua.progress(batchCounter, nbatch)
 			--batchCounter = batchCounter + 1
 		end
+
+		-- print(trconf)
 		--TESTING PHASE OF EPOCH
 		--in this epoch, construct the confusion matrix
 
 		--print('Testing epoch...')
 		
-		net:evaluate()
+		model:evaluate()
 		cmatrix = optim.ConfusionMatrix(data.classes)
 		cmatrix:zero()
 
@@ -243,7 +305,7 @@ for epochNumber=1,params.maxEpoch do
 		for batchIndex in stratBatchIter(data.validation.targets, params.batchSize) do
 			local testBatchInputs = data.validation.inputs:index(1, batchIndex)
 			local testBatchTargets = data.validation.targets:index(1,batchIndex):view(batchIndex:size(1))
-			local testBatchPredictions = net:forward(testBatchInputs)
+			local testBatchPredictions = model:forward(testBatchInputs)
 			--turn into softmax...
 			testBatchPredictions:exp() -- exponentiate
 			testBatchPredictions:cdiv(testBatchPredictions:sum(2):expandAs(testBatchPredictions)) -- divide by sum
@@ -256,6 +318,8 @@ for epochNumber=1,params.maxEpoch do
 			end
 		end
 
+		print(cmatrix)
+
 		epochPerformance = meanF1score(cmatrix)
 		print('epoch'.. epochCounter .. ' performance ' .. epochPerformance)
 		table.insert(epoch_loss_values_list, epochPerformance)
@@ -264,7 +328,7 @@ for epochNumber=1,params.maxEpoch do
 		-- and if so, then save the net to a file...
 		if epochPerformance>bestPerformance then
 			bestPerformance = epochPerformance
-			torch.save(params.logdir .. '/model.dat',net)
+			torch.save(params.logdir .. '/model.dat',model)
 		end
 
 		--EPOCH ENDS HERE
