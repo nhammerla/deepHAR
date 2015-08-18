@@ -1,0 +1,7 @@
+*.dat
+*.mat
+*.RData
+*.zip
+challenge_*
+*.log
+/data/oppChal/README

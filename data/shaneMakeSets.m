@@ -1,3 +1,6 @@
+%set directory containing files
+cd('oppChal')
+
 % Training datasets
 load('S1-ADL1.dat')
 load('S1-ADL2.dat')
@@ -37,6 +40,7 @@ testingLabels = testingX(:,116);
 
 
 %Make rolling windows from data matrices:
+cd('..')
 disp('making rolling windows for testing data')
 [testingData,testingLabels] = rollingWindows(testingData,testingLabels, 15, 30)
 disp('making rolling windows for validation data')
@@ -53,3 +57,6 @@ save('testingLabels.mat', 'testingLabels')
 
 save('valData.mat', 'valData')
 save('valLabels.mat', 'valLabels')
+
+%Now create Torch-readable versions of these files...
+system('th ../shaneMatFiles2torch.lua')

@@ -159,8 +159,14 @@ model = nn.Sequential()
 
 
 
---double-check inputLayerSize
-model:add(nn.Reshape(data.training.inputs:size(2)*data.training.inputs:size(3)))
+--need todouble-check inputLayerSize
+
+--If the training data is 3D, then add reshape layer
+--We will assume that the validation and test data are of the same dimensions
+if data.training.inputs:nDimension()==3 then
+	model:add(nn.Reshape(data.training.inputs:size(2)*data.training.inputs:size(3)))
+end
+
 layerToAdd = nn.Linear(inputLayerSize, params.layerSize)
 model:add(layerToAdd)
 model:add(nn.Dropout(dropout))
