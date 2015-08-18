@@ -20,8 +20,8 @@ function [output,labelsOutput] = rollingWindows(matrix, labelsVector, stepSize, 
         %after appending this new row, set new startpoints and endpoints:
         startpoint = startpoint + stepSize;
         endpoint = startpoint+windowSize-1;
-        if mod(endpoint, 1000)==0
-                sprintf('%d / %d', endpoint, size(unrolledMatrix, 2))
+	if mod(endpoint, 1000)==0
+		sprintf('%d / %d', endpoint, size(unrolledMatrix, 2))
     end
     output = temp;
     labelsOutput = labelsTemp;

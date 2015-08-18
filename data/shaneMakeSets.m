@@ -44,6 +44,7 @@ disp('making rolling windows for validation data')
 disp('making rolling windows for training data')
 [trainingData,trainingLabels] = rollingWindows(trainingData, trainingLabels, 15, 30)
 
+
 save('trainingData.mat', 'trainingData')
 save('trainingLabels.mat', 'trainingLabels')
 
