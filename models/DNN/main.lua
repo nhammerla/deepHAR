@@ -56,6 +56,46 @@ data = torch.load(params.datafile)
 -- -- Define model
 
 -- -- helper functions
+-- from http://lua-users.org/wiki/TableUtils
+function table.val_to_str ( v )
+  if "string" == type( v ) then
+    v = string.gsub( v, "\n", "\\n" )
+    if string.match( string.gsub(v,"[^'\"]",""), '^"+$' ) then
+      return "'" .. v .. "'"
+    end
+    return '"' .. string.gsub(v,'"', '\\"' ) .. '"'
+  else
+    return "table" == type( v ) and table.tostring( v ) or
+      tostring( v )
+  end
+end
+
+function table.key_to_str ( k )
+  if "string" == type( k ) and string.match( k, "^[_%a][_%a%d]*$" ) then
+    return k
+  else
+    return "[" .. table.val_to_str( k ) .. "]"
+  end
+end
+
+function table.tostring( tbl )
+  local result, done = {}, {}
+  for k, v in ipairs( tbl ) do
+    table.insert( result, table.val_to_str( v ) )
+    done[ k ] = true
+  end
+  for k, v in pairs( tbl ) do
+    if not done[ k ] then
+      table.insert( result,
+        table.key_to_str( k ) .. "=" .. table.val_to_str( v ) )
+    end
+  end
+  return "{" .. table.concat( result, "," ) .. "}"
+end
+
+header = table.tostring(params)
+log_file_name = header:gsub('%W','')
+logger = optim.Logger(params.logdir .. '/shanesLogs/' .. log_file_name)
 
 -- -- define training function
 
@@ -330,6 +370,10 @@ for epochNumber=1,params.maxEpoch do
 			bestPerformance = epochPerformance
 			torch.save(params.logdir .. '/model.dat',model)
 		end
+
+
+    	-- save progress
+    	logger:add{['MeanF1:'..header] = epochPerformance, ['epoch number'] = epochCounter }
 
 		--EPOCH ENDS HERE
 	end
