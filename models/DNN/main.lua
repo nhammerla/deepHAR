@@ -102,7 +102,11 @@ logger = optim.Logger(params.logdir .. '/shanesLogs/' .. log_file_name)
 -- -- done!
 
 -- training
-inputLayerSize = data.training.inputs:size(2)*data.training.inputs:size(3)
+if data.training.inputs:size():size()==3 then 
+	inputLayerSize = data.training.inputs:size(2)*data.training.inputs:size(3)
+elseif data.training.inputs:size():size()==2 then
+	inputLayerSize = data.training.inputs:size(2)
+end
 outputSize = #data.classes
 
 torch.manualSeed(params.seed)
@@ -120,32 +124,36 @@ function data.training:size()
     return self.inputs:size(1) 
 end
 
---rescale: subtract mean and divide by standard deviation:
-mean = {}
-stdv = {}
+--ASSUME THAT IF THE INPUT IS IN 2D, THE DATA HAS ALREADY BEEN NORMALIZED IN *makeSets.m
+if data.training.inputs:size():size()==3 then
+	--rescale: subtract mean and divide by standard deviation:
+	mean = {}
+	stdv = {}
 
---For training set:
-for i=1,data.training.inputs:size(3) do -- over all our variables
-	mean[i] = data.training.inputs[{ {},{},{i} }]:mean() -- calculate mean of variable i
-	print('Feature ' .. i .. ', Mean: ' .. mean[i]) -- print this mean
-	data.training.inputs[{ {},{},{1} }]:add(-mean[i]) -- subtract this mean from variable values
-	stdv[i] = data.training.inputs[{ {},{},{i} }]:std() -- std estimation
-	print('Feature ' .. i .. ', Standard Deviation: ' .. stdv[i]) -- print this standard dev
-	data.training.inputs[{ {},{},{1} }]:div(stdv[i])
+	--For training set:
+	for i=1,data.training.inputs:size(3) do -- over all our variables
+		mean[i] = data.training.inputs[{ {},{},{i} }]:mean() -- calculate mean of variable i
+		print('Feature ' .. i .. ', Mean: ' .. mean[i]) -- print this mean
+		data.training.inputs[{ {},{},{1} }]:add(-mean[i]) -- subtract this mean from variable values
+		stdv[i] = data.training.inputs[{ {},{},{i} }]:std() -- std estimation
+		print('Feature ' .. i .. ', Standard Deviation: ' .. stdv[i]) -- print this standard dev
+		data.training.inputs[{ {},{},{1} }]:div(stdv[i])
+	end
+
+	-- data.training.inputs:add(mean:expandAs(data.training.inputs)):cdiv(stdv:expandAs(data.training.inputs))
+
+	--For val set:
+	for i=1,data.training.inputs:size(3) do
+		data.validation.inputs[{ {},{},{i} }]:add(-mean[i]) -- subtract VALIDATION means from test set
+		data.validation.inputs[{ {},{},{i} }]:div(stdv[i]) -- divide VALIDATION by training stdvs
+	end
+	--For test set:
+	for i=1,data.training.inputs:size(3) do
+		data.test.inputs[{ {},{},{i} }]:add(-mean[i]) -- subtract training means from test set
+		data.test.inputs[{ {},{},{i} }]:div(stdv[i]) -- divide testset by training stdvs
+	end
 end
 
--- data.training.inputs:add(mean:expandAs(data.training.inputs)):cdiv(stdv:expandAs(data.training.inputs))
-
---For val set:
-for i=1,data.training.inputs:size(3) do
-	data.validation.inputs[{ {},{},{i} }]:add(-mean[i]) -- subtract VALIDATION means from test set
-	data.validation.inputs[{ {},{},{i} }]:div(stdv[i]) -- divide VALIDATION by training stdvs
-end
---For test set:
-for i=1,data.training.inputs:size(3) do
-	data.test.inputs[{ {},{},{i} }]:add(-mean[i]) -- subtract training means from test set
-	data.test.inputs[{ {},{},{i} }]:div(stdv[i]) -- divide testset by training stdvs
-end
 
 model = nn.Sequential()
 
@@ -168,7 +176,7 @@ model:add(nn.Dropout(dropout))
 model:add(nn.ReLU())
 
 -- Output Layer
-outputSize = #data.classes
+outputSize =18-- #data.classes
 model:add(nn.Linear(params.layerSize, outputSize))
 model:add(nn.LogSoftMax())
 

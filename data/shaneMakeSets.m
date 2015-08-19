@@ -37,16 +37,24 @@ testingX = [S2_ADL4;S2_ADL5; S3_ADL4;S3_ADL5];
 testingData = testingX(:,2:114);
 testingLabels = testingX(:,116);
 
+%Normalize all these matrices (subtract mean and divide by std)
+cd('..')
+trainingData = normalizeMatrix(trainingData);
+valData = normalizeMatrix(valData);
+testingData = normalizeMatrix(testingData);
+cd('oppChal')
 
+size(testingData)
+size(testingLabels)
 
 %Make rolling windows from data matrices:
 cd('..')
 disp('making rolling windows for testing data')
-[testingData,testingLabels] = rollingWindows(testingData,testingLabels, 15, 30)
+[testingData,testingLabels] = rollingWindows(testingData,testingLabels, 15, 30);
 disp('making rolling windows for validation data')
-[valData,valLabels] = rollingWindows(valData,valLabels, 15, 30)
+[valData,valLabels] = rollingWindows(valData,valLabels, 15, 30);
 disp('making rolling windows for training data')
-[trainingData,trainingLabels] = rollingWindows(trainingData, trainingLabels, 15, 30)
+[trainingData,trainingLabels] = rollingWindows(trainingData, trainingLabels, 15, 30);
 
 
 save('trainingData.mat', 'trainingData')
@@ -59,4 +67,4 @@ save('valData.mat', 'valData')
 save('valLabels.mat', 'valLabels')
 
 %Now create Torch-readable versions of these files...
-system('th ../shaneMatFiles2torch.lua')
+system('th shaneMatFiles2torch.lua')

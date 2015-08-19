@@ -7,13 +7,13 @@ data.training={}
 data.test={}
 data.validation={}
 
-data.training['inputs'] = mattorch.load('trainingData.mat')['trainingData']
-data.training['targets'] = mattorch.load('trainingLabels.mat')['trainingLabels']
+data.training['inputs'] = mattorch.load('SMALLtrainingData.mat')['trainingData']
+data.training['targets'] = mattorch.load('SMALLtrainingLabels.mat')['trainingLabels']
 
-data.test['inputs'] = mattorch.load('testingData.mat')['testingData']
-data.test['targets']=mattorch.load('testingLabels.mat')['testingLabels']
+data.test['inputs'] = mattorch.load('SMALLtestingData.mat')['testingData']
+data.test['targets']=mattorch.load('SMALLtestingLabels.mat')['testingLabels']
 
-data.validation['inputs'] = mattorch.load('valData.mat')['valData']
-data.validation['targets']=mattorch.load('valLabels.mat')['valLabels']
+data.validation['inputs'] = mattorch.load('SMALLvalData.mat')['valData']
+data.validation['targets']=mattorch.load('SMALLvalLabels.mat')['valLabels']
 
 torch.save('SMALLopportunityShane.dat', data)
