@@ -97,16 +97,11 @@ header = table.tostring(params)
 log_file_name = header:gsub('%W','')
 logger = optim.Logger(params.logdir .. '/shanesLogs/' .. log_file_name)
 
--- -- define training function
-
--- -- define test function
-
--- -- main training loop
-
 -- -- cleaning up
 
 -- -- done!
 
+-- training
 inputLayerSize = data.training.inputs:size(2)*data.training.inputs:size(3)
 outputSize = #data.classes
 
@@ -178,7 +173,6 @@ model:add(nn.Linear(params.layerSize, outputSize))
 model:add(nn.LogSoftMax())
 
 criterion = nn.ClassNLLCriterion(torch.ones(18))
---criterion = nn.ClassNLLCriterion()
 
 if params.cpu==false then
 	--criterion = 
