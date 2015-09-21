@@ -47,6 +47,6 @@ system(cmd)
 args <- commandArgs(trailingOnly = TRUE)
 gpuToUse<-as.integer(args[1])
 
-while (TRUE )  {
+for (i in 1:5)  {
   newHyperparamComb('../data/oppChal/opportunityShane.dat',gpuToUse)
 }
