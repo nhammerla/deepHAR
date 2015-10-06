@@ -169,6 +169,8 @@ model = nn.Sequential()
 if data.training.inputs:nDimension()==3 then
 	model:add(nn.Reshape(data.training.inputs:size(2)*data.training.inputs:size(3)))
 end
+if data.training.inputs:nDimension()==2 then
+	model:add(
 
 layerToAdd = nn.Linear(inputLayerSize, params.layerSize)
 model:add(layerToAdd)

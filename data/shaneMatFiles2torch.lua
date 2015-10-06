@@ -1,4 +1,5 @@
 require 'mattorch'
+loading = mattorch.load('~/opp2.mat')
 
 data = {}
 
@@ -7,13 +8,16 @@ data.training={}
 data.test={}
 data.validation={}
 
-data.training['inputs'] = mattorch.load('trainingData.mat')['trainingData']
-data.training['targets'] = mattorch.load('trainingLabels.mat')['trainingLabels']
+data.classes = torch.totable(loading.classes)[1]
 
-data.test['inputs'] = mattorch.load('testingData.mat')['testingData']
-data.test['targets']=mattorch.load('testingLabels.mat')['testingLabels']
+data.training.inputs = loading.trainingData
+data.training.targets = torch.squeeze(loading.trainingLabels)
 
-data.validation['inputs'] = mattorch.load('valData.mat')['valData']
-data.validation['targets']=mattorch.load('valLabels.mat')['valLabels']
+-- Make test and validation sets the same for now...
+data.test.inputs = loading.testingData
+data.test.targets = torch.squeeze(loading.testingLabels)
 
-torch.save('opportunityShane.dat', data)
+data.validation.inputs = data.test.inputs
+data.validation.targets = data.test.targets
+
+torch.save('~/opp2.dat',data)

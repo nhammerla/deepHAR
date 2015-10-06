@@ -1,7 +1,7 @@
 %A function to make rolling windows from a matrix
 function [output,labelsOutput] = rollingWindows(matrix, labelsVector, stepSize, windowSize);
-    labelsVector = transpose(labelsVector(:))
-    assert(size(matrix,1)==length(labelsVector), 'The labels vector should be the same size as the first dimension of input matrix, but is not')
+    labelsVector = transpose(labelsVector(:));
+    assert(size(matrix,1)==length(labelsVector), 'The labels vector should be the same size as the first dimension of input matrix, but is not');
     transposedMatrix = transpose(matrix);
     unrolledMatrix = transpose( transposedMatrix(:) );
 
@@ -22,7 +22,7 @@ function [output,labelsOutput] = rollingWindows(matrix, labelsVector, stepSize, 
     while endpoint<=size(unrolledMatrix,2)
         rowToAdd = unrolledMatrix(startpoint:endpoint);
         temp = [temp;rowToAdd];
-        labelsTemp = [labelsTemp labelsVector(endpoint)];
+        labelsTemp = [labelsTemp mode(labelsVector(startpoint:endpoint))];
         %after appending this new row, set new startpoints and endpoints:
         startpoint = startpoint + stepSize;
         endpoint = startpoint+windowSize-1;
