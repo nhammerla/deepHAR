@@ -171,7 +171,7 @@ parameters, gradParameters = model:getParameters()
 parameters:uniform(-0.08,0.08)
 
 -- helper functions
-batchIter = stratBachIter
+batchIter = stratBatchIter
 if params.imbalanced then
     batchIter = stratBatchIterRepeated
 end
