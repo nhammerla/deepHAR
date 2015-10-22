@@ -1,33 +1,57 @@
-%A function to make rolling windows from a matrix
-function [output,labelsOutput] = rollingWindows(matrix, labelsVector, stepSize, windowSize);
-    assert(size(matrix,1)==length(labelsVector), 'The labels vector should be the same size as the first dimension of input matrix, but is not')
-    transposedMatrix = transpose(matrix);
-    unrolledMatrix = transpose( transposedMatrix(:) );
+function [slidingWindows, labelsForWindows] = rollingWindows(matrix, labelsVector, stepSize, windowLength);
+	% matrix function to make 3D rolling windows matrix from a 2D matrix
+	%TODO: stepSize (e.g. 50% overlap)
+	%TODO: incorporate labels
+	
+	tic
+	%Check dimensions of labels and training matrices:
+	labelsVector = squeeze(labelsVector(:));
+	if size(matrix,2)==length(labelsVector);
+		matrix = matrix';
+	end
+	assert(size(matrix,1)==length(labelsVector), 'The labels vector should be the same size as the 1st dimension of training matrix, but is not');
 
-    labelsVector = repelem(labelsVector, size(matrix,2));
+	maxPossibleNumOfWindows = length(labelsVector); 
 
-   %Multiply stepSize and windowSize by row size:
-    stepSize = stepSize * size(matrix,2);
-    windowSize = windowSize * size(matrix,2);
+	%pre-allocate 3D array:
+	B=zeros(windowLength, size(matrix,2),maxPossibleNumOfWindows);
+	%NOTE: THIS IS DIFFERENT FORMmatrixT TO NILS' DATA.
+	%30x113x11321
+	%parfor rowNumber=1:(numberOfWindows)
+	%    B(:,:,rowNumber) = matrix(rowNumber:(rowNumber+windowLength-1),:);
+	%    %B(rowNumber,:,:) = matrix(rowNumber:(rowNumber+windowLength),:)
+	%end
+	
+	%workings begin...
+	%B(:,:,1) = matrix(1:(30),:);1+ (i-1)*windowSize
+	%B(:,:,2) = matrix(15:(45),:);1+ (i-1)*windowSize - (i-1)*overlap
+	%B(:,:,3) = matrix(31:(60),:);1+ (i-1)*windowSize - (i-1)*overlap
+	%B(:,:,4) = matrix(46:(75),:);
+	%workings end...
 
+	numOfWindows = 1;
+	
+	labels = zeros(maxPossibleNumOfWindows);
+	
+	parfor i=1:maxPossibleNumOfWindows
+		windowBeginsAt = 1 + ( (i-1)*windowLength) - ( (i-1)*stepSize);
+		windowEndsAt = windowBeginsAt + windowLength - 1;
+		if windowEndsAt<=length(labelsVector)
+			window = matrix(windowBeginsAt:windowEndsAt,:);
+			B(:,:,i) = window;
+			numOfWindows = max(numOfWindows,i);
+			labels(i) = labelsVector(mode(windowBeginsAt:windowEndsAt));
+		end
+	end
+	numOfWindows
+	if size(B,3)>numOfWindows
+		B = B(:,:,1:numOfWindows);
+		labels = labels(1:numOfWindows);
+	end
 
-    %Creating first row of the output matrix:
-    temp=unrolledMatrix(1:windowSize);
-    labelsTemp = labelsVector(windowSize);
+	toc
 
-     %Setting up next rows:
-    startpoint=stepSize+1;
-    endpoint=startpoint+windowSize-1;
-    while endpoint<=size(unrolledMatrix,2)
-        rowToAdd = unrolledMatrix(startpoint:endpoint);
-        temp = [temp;rowToAdd];
-        labelsTemp = [labelsTemp labelsVector(endpoint)];
-        %after appending this new row, set new startpoints and endpoints:
-        startpoint = startpoint + stepSize;
-        endpoint = startpoint+windowSize-1;
-	if mod(endpoint, 1000)==0
-		sprintf('%d / %d', endpoint, size(unrolledMatrix, 2))
-    end
-    output =transpose(temp);
-    labelsOutput = labelsTemp;
+	slidingWindows = B;
+	labelsForWindows = labels;
+%reshape(B, [numberOfWindows size(matrix, 2) windowLength])
 end
