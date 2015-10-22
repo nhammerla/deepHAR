@@ -1,7 +1,10 @@
 function [slidingWindows, labelsForWindows] = rollingWindows(matrix, labelsVector, stepSize, windowLength);
 	% matrix function to make 3D rolling windows matrix from a 2D matrix
-	%TODO: stepSize (e.g. 50% overlap)
-	%TODO: incorporate labels
+	
+%	matrix = matrix(1:cutoff, :);
+%	labelsVector= labelsVector(1:cutoff);
+	disp('Input Matrix Size');size(matrix)
+	disp('labelsVector');size(labelsVector)
 	
 	tic
 	%Check dimensions of labels and training matrices:
@@ -31,9 +34,12 @@ function [slidingWindows, labelsForWindows] = rollingWindows(matrix, labelsVecto
 
 	numOfWindows = 1;
 	
-	labels = zeros(maxPossibleNumOfWindows);
+	disp(who)
+
+	%pre-allocate the labels vector:
+	labels = squeeze(zeros(maxPossibleNumOfWindows,1));
 	
-	parfor i=1:maxPossibleNumOfWindows
+	for i=1:maxPossibleNumOfWindows
 		windowBeginsAt = 1 + ( (i-1)*windowLength) - ( (i-1)*stepSize);
 		windowEndsAt = windowBeginsAt + windowLength - 1;
 		if windowEndsAt<=length(labelsVector)
@@ -53,5 +59,5 @@ function [slidingWindows, labelsForWindows] = rollingWindows(matrix, labelsVecto
 
 	slidingWindows = B;
 	labelsForWindows = labels;
-%reshape(B, [numberOfWindows size(matrix, 2) windowLength])
+	%reshape(B, [numberOfWindows size(matrix, 2) windowLength])
 end

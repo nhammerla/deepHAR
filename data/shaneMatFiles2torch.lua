@@ -1,5 +1,5 @@
 require 'mattorch'
-loading = mattorch.load('~/opp2.mat')
+loading = mattorch.load('opp2.mat')
 
 data = {}
 
@@ -8,7 +8,8 @@ data.training={}
 data.test={}
 data.validation={}
 
-data.classes = torch.totable(loading.classes)[1]
+--data.classes = torch.totable(loading.classes)[1]
+data.classes = torch.totable(torch.range(1,18))
 
 data.training.inputs = loading.trainingData
 data.training.targets = torch.squeeze(loading.trainingLabels)
@@ -20,4 +21,4 @@ data.test.targets = torch.squeeze(loading.testingLabels)
 data.validation.inputs = data.test.inputs
 data.validation.targets = data.test.targets
 
-torch.save('~/opp2.dat',data)
+torch.save('opp2.dat',data)
