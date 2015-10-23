@@ -3,10 +3,9 @@ function [slidingWindows, labelsForWindows] = rollingWindows(matrix, labelsVecto
 	
 %	matrix = matrix(1:cutoff, :);
 %	labelsVector= labelsVector(1:cutoff);
-	disp('Input Matrix Size');size(matrix)
-	disp('labelsVector');size(labelsVector)
+	%disp('Input Matrix Size');size(matrix)
+	%disp('labelsVector');size(labelsVector)
 	
-	tic
 	%Check dimensions of labels and training matrices:
 	labelsVector = squeeze(labelsVector(:));
 	if size(matrix,2)==length(labelsVector);
@@ -34,12 +33,11 @@ function [slidingWindows, labelsForWindows] = rollingWindows(matrix, labelsVecto
 
 	numOfWindows = 1;
 	
-	disp(who)
 
 	%pre-allocate the labels vector:
 	labels = squeeze(zeros(maxPossibleNumOfWindows,1));
 	
-	for i=1:maxPossibleNumOfWindows
+	parfor i=1:maxPossibleNumOfWindows
 		windowBeginsAt = 1 + ( (i-1)*windowLength) - ( (i-1)*stepSize);
 		windowEndsAt = windowBeginsAt + windowLength - 1;
 		if windowEndsAt<=length(labelsVector)
@@ -49,13 +47,10 @@ function [slidingWindows, labelsForWindows] = rollingWindows(matrix, labelsVecto
 			labels(i) = labelsVector(mode(windowBeginsAt:windowEndsAt));
 		end
 	end
-	numOfWindows
 	if size(B,3)>numOfWindows
 		B = B(:,:,1:numOfWindows);
 		labels = labels(1:numOfWindows);
 	end
-
-	toc
 
 	slidingWindows = B;
 	labelsForWindows = labels;
