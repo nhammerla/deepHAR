@@ -1,8 +1,10 @@
 %TODO consider loading data from subjects 2,3,4 along with 1
-%TODO OPP2 permute to be same dimensions as Nils' opp1.dat
 
 clear;
 
+normalize = true;
+makeMeanFeatures = true;
+convertToTorch = true;
 %Be sure to cd into this directory first!
 %base='../../dataset/';
 base=('~/OpportunityUCIDataset/dataset/')
@@ -42,9 +44,24 @@ testingLabels = changem(testingLabels, 1:length(uniques), uniques);
 
 clear base sadl1 sadl2 sadl3 sadl4 sadl5 sdrill selectedCol test1 training1 uniques
 
+% ---CODE TO REMOVE THE NULL CLASS---
+%isNULL = trainingLabels==1;
+%trainingLabels(isNULL) = [];
+%trainingData(isNULL, :) = []; 
+%size(trainingData)
+
 trainingData = backfillnans(trainingData); testingData = backfillnans(testingData);
-stepSize = 15
-windowSize = 30
+
+if normalize 
+	[trainingData, colMeans, colStds] = normalizeMatrix(trainingData);
+
+	%Normalize the test data using the same column means and standard deviations as in the training set:
+	testingData = (testingData - repmat(colMeans, size(testingData,1),1)) ./ repmat(colStds, size(testingData,1), 1);
+	testingData(isnan(testingData)) = 0;
+end
+
+stepSize = 15;
+windowSize = 30;
 
 classes = unique(trainingLabels)
 [trainingData, trainingLabels] = rollingWindows(trainingData, trainingLabels, stepSize, windowSize);
@@ -52,11 +69,22 @@ classes = unique(trainingLabels)
 %trainingData = trainingData';testingData = testingData';
 %trainingLabels = trainingLabels';testingLabels = testingLabels';
 
-%Make mean features in each sliding window:
-meanFeatures = @(matrix1) squeeze(sum(matrix1,1));
-slidingMeanTrainData = meanFeatures(trainingData);
-slidingMeanTestData = meanFeatures(testingData);
+%Permute dimensions to match Nils' data
+trainingData = permute(trainingData, [2 1 3]);
+testingData = permute(testingData, [2 1 3]);
 
-save('opp2.mat','classes', 'trainingData', 'trainingLabels', 'testingData', 'testingLabels', 'slidingMeanTrainData', 'slidingMeanTestData')
-save('opp2MATLABMEANFEATURES.mat', 'slidingMeanTrainData', 'slidingMeanTestData', 'trainingLabels', 'testingLabels')
-system('th shaneMatFiles2torch.lua')
+save('opp2.mat','classes', 'trainingData', 'trainingLabels', 'testingData', 'testingLabels')
+
+%BEGINNING TESTING CODE
+if makeMeanFeatures 
+	%Make mean features in each sliding window:
+	meanFeatures = @(matrix1) transpose(squeeze(mean(matrix1,2)));
+	slidingMeanTrainData = meanFeatures(trainingData);
+	slidingMeanTestData = meanFeatures(testingData);
+	save('opp2MATLABMEANFEATURES.mat', 'slidingMeanTrainData', 'slidingMeanTestData', 'trainingLabels', 'testingLabels')
+	%unix('Rscript replicateNearestNeighbours.R','-echo');
+end
+%END TESTING CODE
+if convertToTorch 
+	unix('th shaneMatFiles2torch.lua');
+end
