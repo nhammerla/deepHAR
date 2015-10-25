@@ -37,8 +37,9 @@ function [slidingWindows, labelsForWindows] = rollingWindows(matrix, labelsVecto
 	%pre-allocate the labels vector:
 	labels = squeeze(zeros(maxPossibleNumOfWindows,1));
 	
-	parfor i=1:maxPossibleNumOfWindows
-		windowBeginsAt = 1 + ( (i-1)*windowLength) - ( (i-1)*stepSize);
+	for i=1:maxPossibleNumOfWindows
+		%windowBeginsAt = 1 + ( (i-1)*windowLength) - ( (i-1)*stepSize);
+		windowBeginsAt = 1 + ((i-1)*stepSize);
 		windowEndsAt = windowBeginsAt + windowLength - 1;
 		if windowEndsAt<=length(labelsVector)
 			window = matrix(windowBeginsAt:windowEndsAt,:);
