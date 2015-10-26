@@ -1,52 +1,30 @@
-#This R script will take as argument the GPU to run on. It will compute manyneural network runs with random sets of hyperparameter sets as detailed below:
-#
-#
-#
-# Layer size	   		Discrete log-uniform 	10..2000
-# Number of layers		Random choice from 	1..10
-# Learning rate			Cts log-uniform  	0.00001..0.9
-# Dropout	 		cts log-uniform		0.01..0.99
-# Momentum 			cts uniform 		0.01..0.99
-# learningRateDecay 		cts log-uniform 	0.00001..0.9
-# maxInNorm 			cts log-uniform		0.00001..10
-#           
-#
-# Suggested use: create one screen bash instance per GPU available
-# Then in each individual screen, do:
-# > Rscript experimentsToRun.R 1
-# to run on GPU number 1.  
+# Make CSV file with combinations of hyperparameters for DNN, CNN and RNN neural networks           
+# Example run: Rscript experimentsToRun.R 'DNN' 200 will create 200 combinations of hyperparameters for a DNN.
  
-logUniform <- function(a,b){
-  exp(runif(1, log(a), log(b)))
-}
-
-newHyperparamComb <- function(datafile, gpu){
-  numLayers = round(runif(1,1,10))
-  layerSize = round(logUniform(10,2000))
-  learningRate = logUniform(0.00001,0.9)
-  dropout = logUniform(0.01, 0.99)
-  momentum = logUniform(0.01,0.99)
-  learningRateDecay = logUniform(0.00001, 0.9)
-  maxInNorm = logUniform(0.00001,10)
-  
-  cmd=paste('th ../models/DNN/main.lua -gpu',gpu,
-        ' -datafile',datafile,
-        ' -numLayers',numLayers,
-        ' -layerSize',layerSize,
-        ' -learningRate',learningRate,
-        ' -dropout',dropout,
-        ' -momentum',momentum,
-        ' -learningRateDecay',learningRateDecay,
-        ' maxInNorm',maxInNorm)
-print(cmd)  
-system(cmd)
- 
-}
-
-
 args <- commandArgs(trailingOnly = TRUE)
-gpuToUse<-as.integer(args[1])
+networkType<-(args[1])
+n<-as.integer(args[2])
 
-for (i in 1:5)  {
-  newHyperparamComb('../data/oppChal/opportunityShane.dat',gpuToUse)
+#Helper functions
+#Should we use base e, base 2, or base 10?
+Uniform 		<- function(n, a, b)	{ runif(n,a,b) }
+logUniform 		<- function(n, a, b)	{ exp( Uniform(n,log(a),log(b))  ) }
+discreteUniform		<- function(n, a, b)	{ ceiling(runif(n, a-1, b)) }
+discreteLogUniform	<- function(n, a, b)	{ ceiling(logUniform(n, a-1, b)) }
+
+newHyperparamComb <- function(networkType, n){
+	if(networkType=="DNN"){
+	  numLayers 		= discreteUniform(n,1,10)
+	  layerSize 		= discreteLogUniform(n,128,2048)
+	  learningRate 		= logUniform(n,0.00001,0.5)
+	  dropout 		= logUniform(n,0.01, 0.5)
+	  momentum 		= logUniform(n,0.01,0.99)
+	  learningRateDecay 	= logUniform(n,10e-7, 10e-4)
+	  maxInNorm 		= logUniform(n,0.5,5)
+
+	  row = cbind( numLayers, layerSize, learningRate, dropout, momentum, learningRateDecay, maxInNorm)
+	  }
 }
+
+outputTable = newHyperparamComb(networkType, n)
+write.csv(outputTable, file = 'hyperparameterCombinations.csv', row.names=FALSE)
