@@ -43,76 +43,43 @@ cmd:text()
 
 -- parse input params
 params = cmd:parse(arg)
+print(params.datafile)
 
--- FOR CREATING LOG FILE
-params.rundir = cmd:string(params.logdir, params, {dir=true})
-paths.mkdir(params.rundir)
 
--- -- create log file
-cmd:log(params.rundir .. '/log', params)
 
--- -- Read in data-set and (maybe) store on GPU
+--This can be replaced by command line parameters:
+--params={}
+-- 1.	Parameters about filesystem:
+--params.datafile = 'opp2.dat'
+--params.logdir = 'exp'
+-- 2.	Parameters for defining model:
+--params.numLayers = 3 --changed
+--params.layerSize = 512 --changed
+--params.dropout=0.5
+--params.maxInNorm = 2
+--params.maxOutNorm = 0.5 -- NOT IMPLEMENTED
+-- 3.	Parameters related to computation
+--params.cpu = false
+--params.seed=1
+--params.gpu= 1
+---- 4.	Parameters related to model training/backpropagation:
+--params.batchSize = 64
+--params.learningRate = 0.1
+--params.momentum = 0.9
+--params.learningRateDecay = 5e-5
+--params.patience = 50 -- changed
+--params.minEpoch = 100 --changed
+--params.maxEpoch = 1000 --changed
+--params.batchSize = 64
+----params.stepSize = 8
+---- 5.	Parameters related to class selection
+--params.ignore = false
+--params.ignoreClass = 0
+--params.classWeights = '' -- Won't run while this is here?
+--end
+
+-- 1.	FILESYSTEM: IMPORT DATA
 data = torch.load(params.datafile)
--- -- Define model
-
--- -- helper functions
--- from http://lua-users.org/wiki/TableUtils
-function table.val_to_str ( v )
-  if "string" == type( v ) then
-    v = string.gsub( v, "\n", "\\n" )
-    if string.match( string.gsub(v,"[^'\"]",""), '^"+$' ) then
-      return "'" .. v .. "'"
-    end
-    return '"' .. string.gsub(v,'"', '\\"' ) .. '"'
-  else
-    return "table" == type( v ) and table.tostring( v ) or
-      tostring( v )
-  end
-end
-
-function table.key_to_str ( k )
-  if "string" == type( k ) and string.match( k, "^[_%a][_%a%d]*$" ) then
-    return k
-  else
-    return "[" .. table.val_to_str( k ) .. "]"
-  end
-end
-
-function table.tostring( tbl )
-  local result, done = {}, {}
-  for k, v in ipairs( tbl ) do
-    table.insert( result, table.val_to_str( v ) )
-    done[ k ] = true
-  end
-  for k, v in pairs( tbl ) do
-    if not done[ k ] then
-      table.insert( result,
-        table.key_to_str( k ) .. "=" .. table.val_to_str( v ) )
-    end
-  end
-  return "{" .. table.concat( result, "," ) .. "}"
-end
-
-header = table.tostring(params)
-log_file_name = header:gsub('%W','')
-logger = optim.Logger(params.logdir .. '/shanesLogs/' .. log_file_name)
-
--- -- cleaning up
-
--- -- done!
-
--- training
-if data.training.inputs:size():size()==3 then 
-	inputLayerSize = data.training.inputs:size(2)*data.training.inputs:size(3)
-elseif data.training.inputs:size():size()==2 then
-	inputLayerSize = data.training.inputs:size(2)
-end
-outputSize = #data.classes
-
-torch.manualSeed(params.seed)
-cutorch.setDevice(params.gpu)
-cutorch.manualSeed(params.seed, params.gpu)
-torch.setnumthreads(16)
 
 setmetatable(data.training, 
     {__index = function(t, i) 
@@ -124,78 +91,74 @@ function data.training:size()
     return self.inputs:size(1) 
 end
 
---ASSUME THAT IF THE INPUT IS IN 2D, THE DATA HAS ALREADY BEEN NORMALIZED IN *makeSets.m
-if data.training.inputs:size():size()==3 then
-	--rescale: subtract mean and divide by standard deviation:
-	mean = {}
-	stdv = {}
-
-	--For training set:
-	for i=1,data.training.inputs:size(3) do -- over all our variables
-		mean[i] = data.training.inputs[{ {},{},{i} }]:mean() -- calculate mean of variable i
-		print('Feature ' .. i .. ', Mean: ' .. mean[i]) -- print this mean
-		data.training.inputs[{ {},{},{1} }]:add(-mean[i]) -- subtract this mean from variable values
-		stdv[i] = data.training.inputs[{ {},{},{i} }]:std() -- std estimation
-		print('Feature ' .. i .. ', Standard Deviation: ' .. stdv[i]) -- print this standard dev
-		data.training.inputs[{ {},{},{1} }]:div(stdv[i])
-	end
-
-	-- data.training.inputs:add(mean:expandAs(data.training.inputs)):cdiv(stdv:expandAs(data.training.inputs))
-
-	--For val set:
-	for i=1,data.training.inputs:size(3) do
-		data.validation.inputs[{ {},{},{i} }]:add(-mean[i]) -- subtract VALIDATION means from test set
-		data.validation.inputs[{ {},{},{i} }]:div(stdv[i]) -- divide VALIDATION by training stdvs
-	end
-	--For test set:
-	for i=1,data.training.inputs:size(3) do
-		data.test.inputs[{ {},{},{i} }]:add(-mean[i]) -- subtract training means from test set
-		data.test.inputs[{ {},{},{i} }]:div(stdv[i]) -- divide testset by training stdvs
-	end
-end
-
-
+-- 2.	DEFINE MODEL
 model = nn.Sequential()
 
---data.training.inputs = nn.Reshape(data.training.inputs:size(2)*data.training.inputs:size(3)):forward(data.training.inputs)
-
-
-
-
---need todouble-check inputLayerSize
-
---If the training data is 3D, then add reshape layer
---We will assume that the validation and test data are of the same dimensions
-if data.training.inputs:nDimension()==3 then
-	model:add(nn.Reshape(data.training.inputs:size(2)*data.training.inputs:size(3)))
+--Assume the data is 3D, where:
+-- Dimension 1: the index of the sliding window (e.g. 11437)
+-- Dimension 2: the number of timepoints per sliding window (e.g. 30)
+-- Dimension 3: the number of sensor features (e.g. 113)
+if data.training.inputs:size():size()==3 then
+	--add reshape layer to model
+	inputLayerSize = data.training.inputs:size(2)*data.training.inputs:size(3)
+	model:add(nn.Reshape(inputLayerSize))
+	firstLayer = nn.Linear(inputLayerSize, params.layerSize)
 end
-if data.training.inputs:nDimension()==2 then
-	model:add(
 
-layerToAdd = nn.Linear(inputLayerSize, params.layerSize)
-model:add(layerToAdd)
-model:add(nn.Dropout(dropout))
+model:add(firstLayer)
+model:add(nn.Dropout(params.dropout))
 model:add(nn.ReLU())
 
--- Output Layer
-outputSize =18-- #data.classes
+--Adding hidden layers:
+for layer=1,params.numLayers do
+	model:add(nn.Linear(params.layerSize, params.layerSize))
+	model:add(nn.Dropout(params.dropout))
+	model:add(nn.ReLU())
+end
+
+outputSize = 18
 model:add(nn.Linear(params.layerSize, outputSize))
 model:add(nn.LogSoftMax())
 
-criterion = nn.ClassNLLCriterion(torch.ones(18))
+classWeights = {0.695899274285215, 0.0126781498644749, 0.0134650695112355, 0.0104922619568069, 0.0181865873917985, 0.0190609425548658, 0.0105796974731136, 0.0146017312232229, 0.0116289236687943, 0.0126781498644749, 0.014251989157996, 0.0112791816035674, 0.0195855556527061, 0.0200227332342397, 0.0106671329894203, 0.015825828451517, 0.072484043018274, 0.0166127480982775}
+classWeights = torch.Tensor(classWeights)
+classWeights = torch.ones(18):cdiv(classWeights)
+criterion = nn.ClassNLLCriterion(classWeights)
+print(model)
+
+-- 3.	COMPUTATION SETTINGS
+torch.manualSeed(params.seed)
+cutorch.setDevice(params.gpu)
+cutorch.manualSeed(params.seed, params.gpu)
+torch.setnumthreads(16)
 
 if params.cpu==false then
-	--criterion = 
 	criterion:cuda()
 	data.training.inputs = data.training.inputs:cuda()
 	data.test.inputs = data.test.inputs:cuda()
 	data.validation.inputs = data.validation.inputs:cuda()
+	data.training.targets=data.training.targets:cuda()
+	data.test.targets=data.test.targets:cuda()
+	data.validation.targets=data.validation.targets:cuda()
 	model:cuda()
 end
 
+
+--4.	TRAINING / BACKPROPAGATION
+
+epochPerformance={}
+testPerformance={}
+-- get parameter references and initialise
 parameters, gradParameters = model:getParameters()
 parameters:uniform(-0.08,0.08)
 
+-- helper functions
+batchIter = stratBatchIter
+if params.imbalanced then
+    batchIter = stratBatchIterRepeated
+end
+
+-- max in norm
 renormW = function(mod)
     -- rescale to incoming 2-norm of maxInNorm for each hidden unit
     local par = mod:parameters()
@@ -212,183 +175,191 @@ renormW = function(mod)
     end
 end
 
-lastValueOfList = function(list1)
-	return list1[#list1]
+local checkConvergence = function(epoch, win)
+    -- check for convergence over last win epochs (on validation set)
+    for p=(epoch-win+1),epoch do
+        if (epochPerformance[p].meanF1score) >
+           (epochPerformance[epoch-win].meanF1score) then
+           -- if performance has increased relatively to last epoch at least once,
+           -- then we have not converged!
+           return false
+        end
+    end
+    -- all epochs decreased in performance, we have converged
+    return true
 end
 
-lowestOfLast_n_Values = function(list1,n) 
-	if not list1 then return nil end
-	lowest = list1[#list1-n+1]
-	for i=(#list1-n+1),#list1 do
-		if list1[i]<lowest then
-			lowest = list1[i]
-		end
+-- training function
+function train(data, labels)
+   -- epoch tracker
+   epoch = epoch or 1
+
+   -- set model to training mode
+   model:training()
+
+   -- local vars
+   local time = sys.clock()
+
+   -- do one epoch
+   print('<trainer> on training set:')
+   print("<trainer> online epoch # " .. epoch .. ' [batchSize = ' .. params.batchSize .. ']')
+
+   local nbatch = torch.floor(data:size(1) / params.batchSize)
+   local cnt = 1
+
+   -- cycle through stratified batches
+   for batchIndex in batchIter(labels, params.batchSize) do
+
+      -- create mini batch
+      if data:nDimension()==3 then  
+            inputs = data:index(1,batchIndex):view(batchIndex:size(1),data:size(2),data:size(3))  
+      end
+	if params.cpu==false then
+     		targets = labels:index(1,batchIndex):cuda()
+	else 
+		targets = labels:index(1,batchIndex)
 	end
-	return lowest
+
+      -- create closure to evaluate f(X) and df/dX
+      local feval = function(x)
+         -- just in case:
+         collectgarbage()
+
+         -- get new parameters
+         if x ~= parameters then
+            parameters:copy(x)
+         end
+
+         -- reset gradients
+         gradParameters:zero()
+
+         -- evaluate function for complete mini batch
+         local outputs = model:forward(inputs)
+         local f = criterion:forward(outputs, targets:view(targets:size(1)))
+	 print(f)
+         -- estimate df/dW
+         local df_do = criterion:backward(outputs, targets:view(targets:size(1)))
+
+         if params.weights then
+             df_do:cmul(params.weights:expandAs(df_do))
+         end
+
+         -- backpropagate
+         model:backward(inputs, df_do)
+
+         -- return f and df/dX
+         return f,gradParameters
+     end
+
+     sgdState = sgdState or {
+        learningRate = params.learningRate,
+        momentum = params.momentum,
+        learningRateDecay = params.learningRateDecay
+     }
+
+     optim.sgd(feval, parameters, sgdState)
+
+     -- renormalise weights
+     for i,mod in ipairs(model.modules) do
+       renormW(mod)
+     end
+
+     xlua.progress(cnt, nbatch)
+     cnt = cnt + 1
+   end
+
+   -- time taken
+   time = sys.clock() - time
+   time = time / data:size(1)
+
+   print("<trainer> time to learn 1 sample = " .. (time*1000) .. 'ms')
+
+   epoch = epoch + 1
 end
 
-hasConverged = function(epoch_loss_values_list, n)
-	if #epoch_loss_values_list<11 then
-		return false
-	elseif lastValueOfList(epoch_loss_values_list)<lowestOfLast_n_Values(epoch_loss_values_list, n) then
-		return true
-	else
-		return false
-	end
+function test(data, labels, classes, testing)
+   -- local vars
+   local time = sys.clock()
+   local confusion = optim.ConfusionMatrix(classes)
+   confusion:zero()
+
+   -- set to test mode
+   model:evaluate()
+
+   -- test over given data
+   print('<trainer> on testing Set:')
+    local nbatch = torch.floor(labels:size(1) / params.batchSize)
+    local cnt = 1
+
+   for batchIndex in batchIter(labels:view(labels:size(1)), params.batchSize) do
+      -- disp progress
+      xlua.progress(cnt, nbatch)
+
+      -- create mini batch
+--      local inputs = data:index(1,batchIndex):cuda()
+      local inputs = data:index(1,batchIndex):view(batchIndex:size(1),data:size(2),data:size(3))
+      local targets = labels:index(1,batchIndex):view(batchIndex:size(1)):cuda()
+
+      -- test samples
+      local preds = model:forward(inputs)
+
+      -- turn into softmax
+      preds:exp()
+      preds:cdiv(preds:sum(2):expandAs(preds))
+
+      -- confusion:
+      for i = 1,batchIndex:size(1) do
+        confusion:add(preds[i], targets[i])
+      end
+        cnt = cnt + 1
+   end
+
+   -- timing
+   time = sys.clock() - time
+   time = time / data:size(1)
+   print("<trainer> time to test 1 sample = " .. (time*1000) .. 'ms')
+
+   -- print confusion matrix
+   print(confusion)
+
+   local perf = {}
+   perf.confusion = confusion
+   perf.meanF1score = meanF1score(confusion)
+   perf.TN = confusion.mat[1][1] / confusion.mat[1]:sum()
+   perf.TP = confusion.mat[2][2] / confusion.mat[2]:sum()
+
+   if testing == true then
+      table.insert(testPerformance, perf)
+    else
+      table.insert(epochPerformance, perf)
+   end
+
+   return meanF1score(confusion)
 end
 
-epochCounter = 1
-epoch_loss_values_list = {}
-bestPerformance = 0
+local best = 0
+local progress = {}
+progress.epochPerformance = epochPerformance
+progress.testPerformance = testPerformance
 
-for epochNumber=1,params.maxEpoch do
-	converged = hasConverged(epoch_loss_values_list,params.patience)
-	if converged and not epochNumber<params.minEpoch then
-		break
-	else
-		--EPOCH BEGINS HERE
-		--print('Training epoch '..epochNumber)
-		--TRAINING PHASE OF EPOCH
-		batchCounter = 1
-		model:training()
-		nbatch = torch.floor(data.training.targets:size(1) / params.batchSize)
+for e=1,params.maxEpoch do
+    train(data.training.inputs, data.training.targets)
+    local score = test(data.validation.inputs, data.validation.targets, data.classes, false)
+    test(data.test.inputs, data.test.targets, data.classes, true)
 
-		local trconf = optim.ConfusionMatrix(data.classes)
+    if score > best then
+        best = score
+        epochPerformance.best = e
+        torch.save(params.logdir .. '/model.dat', model)
+    end
 
-		for batchIndex in stratBatchIter(data.training.targets, params.batchSize) do
-			local batchInputs = data.training.inputs:index(1, batchIndex)
-			local batchTargets = data.training.targets:index(1,batchIndex)
-			if params.cpu == false then
-				batchTargets = batchTargets:cuda()
-			end
+    -- save progress
+    torch.save(params.logdir .. '/progress.dat', progress)
 
-			--BEGIN SHANE'S TRAINING PART
-			-- model:zeroGradParameters()
-
-			-- local batchPredictions = model:forward(batchInputs)
-			-- --print(batchPredictions)
-
-			-- -- WHAT DO THESE 4 LINES OF CODE DO?
-			-- --criterion:forward(batchPredictions, batchTargets)
-			-- --model:zeroGradParameters()
-			-- --model:backward(batchInputs, criterion:backward(model.output, batchTargets))
-			-- --model:updateParameters(0.01)
-
-			-- --print(batchTargets)
-			
-
-			-- local loss = criterion:forward(batchPredictions, batchTargets)
-			-- gradCriterion = criterion:backward(batchPredictions, batchTargets)
-			
-			-- model:backward(batchInputs, gradCriterion)
-
-			-- model:updateParameters(params.learningRate)
-
-			--END SHANE'S TRAINING PART
-			--BEGIN NILS' ALTERNATIVE
-
-			-- create closure to evaluate f(X) and df/dX
-		      local feval = function(x)
-		         -- just in case:
-		         collectgarbage()
-
-		         -- get new parameters
-		         if x ~= parameters then
-		            parameters:copy(x)
-		         end
-
-		         -- reset gradients
-		         gradParameters:zero()
-
-		         -- evaluate function for complete mini batch
-		         local batchPredictions = model:forward(batchInputs)
-		         local f = criterion:forward(batchPredictions, batchTargets:view(batchTargets:size(1)))
-
-		         -- estimate df/dW
-		         local df_do = criterion:backward(batchPredictions, batchTargets:view(batchTargets:size(1)))
-
-		         if params.weights then
-		             df_do:cmul(params.weights:expandAs(df_do))
-		         end
-
-		         -- backpropagate
-		         model:backward(batchInputs, df_do)
-
-		         -- return f and df/dX
-		         return f,gradParameters
-		     end
-
-		     sgdState = sgdState or {
-		        learningRate = params.learningRate,
-		        momentum = params.momentum,
-		        learningRateDecay = params.learningRateDecay
-		     }
-
-		     optim.sgd(feval, parameters, sgdState)
-		     -- END NILS' ALTERNATIVE
-
-			-- renormalise weights
-     		for i,mod in ipairs(model.modules) do
-       			renormW(mod)
-     		end
-
-     		--print(loss)	
-
-     		-- for i=1,batchPredictions:size(1) do
-     		-- 	trconf:add(batchPredictions[i], batchTargets[i])
-     		-- end
-			--xlua.progress(batchCounter, nbatch)
-			--batchCounter = batchCounter + 1
-		end
-
-		-- print(trconf)
-		--TESTING PHASE OF EPOCH
-		--in this epoch, construct the confusion matrix
-
-		--print('Testing epoch...')
-		
-		model:evaluate()
-		cmatrix = optim.ConfusionMatrix(data.classes)
-		cmatrix:zero()
-
-		nbatch = torch.floor(data.validation.targets:size(1) / params.batchSize)
-		for batchIndex in stratBatchIter(data.validation.targets, params.batchSize) do
-			local testBatchInputs = data.validation.inputs:index(1, batchIndex)
-			local testBatchTargets = data.validation.targets:index(1,batchIndex):view(batchIndex:size(1))
-			local testBatchPredictions = model:forward(testBatchInputs)
-			--turn into softmax...
-			testBatchPredictions:exp() -- exponentiate
-			testBatchPredictions:cdiv(testBatchPredictions:sum(2):expandAs(testBatchPredictions)) -- divide by sum
-
-			--modify confusion matrix...
-			--cmatrix:batchAdd(testBatchPredictions, testBatchTargets)--batchAdd doesn't work?
-			--TRY GOING THROUGH IT INDIVIDUALLY INSTEAD...
-			for i=1,testBatchPredictions:size(1) do
-				cmatrix:add(testBatchPredictions[i], testBatchTargets[i])
-			end
-		end
-
-		print(cmatrix)
-
-		epochPerformance = meanF1score(cmatrix)
-		print('epoch'.. epochCounter .. ' performance ' .. epochPerformance)
-		table.insert(epoch_loss_values_list, epochPerformance)
-
-		--check if this is the best performance so far,
-		-- and if so, then save the net to a file...
-		if epochPerformance>bestPerformance then
-			bestPerformance = epochPerformance
-			torch.save(params.logdir .. '/model.dat',model)
-		end
-
-
-    	-- save progress
-    	logger:add{['MeanF1:'..header] = epochPerformance, ['epoch number'] = epochCounter }
-
-		--EPOCH ENDS HERE
-	end
-	xlua.progress(epochCounter, params.maxEpoch)
-	epochCounter = epochCounter+1
+    if e > params.minEpoch then
+        -- check for convergence
+        if checkConvergence(e,params.patience) == true then
+            break
+        end
+    end
 end
-print()
-print(cmatrix)
