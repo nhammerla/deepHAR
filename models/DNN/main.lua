@@ -213,12 +213,11 @@ function train(data, labels)
       if data:nDimension()==3 then  
             inputs = data:index(1,batchIndex):view(batchIndex:size(1),data:size(2),data:size(3))  
       end
+      local targets = = labels:index(1,batchIndex)
+      
 	if params.cpu==false then
-     		targets = labels:index(1,batchIndex):cuda()
-	else 
-		targets = labels:index(1,batchIndex)
+		targets:cuda()
 	end
-
       -- create closure to evaluate f(X) and df/dX
       local feval = function(x)
          -- just in case:
