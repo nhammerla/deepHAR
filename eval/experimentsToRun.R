@@ -69,4 +69,4 @@ newHyperparamComb <- function(networkType, n){
 }
 
 outputTable = newHyperparamComb(networkType, n)
-write.csv(outputTable, file = 'hyperparameterCombinations.csv', row.names=FALSE)
+write.csv(outputTable, file = 'hyperparameterCombinations.csv', row.names=FALSE,quote=FALSE)
