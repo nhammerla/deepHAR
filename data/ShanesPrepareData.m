@@ -6,12 +6,17 @@ normalize = true;
 makeMeanFeatures = true;
 convertToTorch = true;
 allSubjects = true;
+IMUsOnly = true;
 %Be sure to cd into this directory first!
 %base='../../dataset/';
 base=('~/OpportunityUCIDataset/dataset/')
 addpath(genpath('~/OpportunityUCIDataset/scripts/'))
 
 selectedCol = [2:46 51:59 64:72 77:85 90:98 103:134 250];
+
+if IMUsOnly
+	selectedCol = [38:48 51:59 64:72 77:85 90:98 103:134 250];
+end
 
 if allSubjects
 	% training
@@ -118,7 +123,12 @@ classes = unique(trainingLabels);
 trainingData = permute(trainingData, [2 1 3]);
 testingData = permute(testingData, [2 1 3]);
 
-save('opp2.mat','classes', 'trainingData', 'trainingLabels', 'testingData', 'testingLabels')
+filename = 'opp2.mat';
+if IMUsOnly
+	filename='opp2IMUsOnly.mat';
+end
+
+save(filename,'classes', 'trainingData', 'trainingLabels', 'testingData', 'testingLabels')
 
 %BEGINNING TESTING CODE
 if makeMeanFeatures 
@@ -131,5 +141,9 @@ if makeMeanFeatures
 end
 %END TESTING CODE
 if convertToTorch 
-	unix('th shaneMatFiles2torch.lua');
+	if IMUsOnly
+		unix('th shaneMatFiles2torchIMUsOnly.lua')
+	else
+		unix('th shaneMatFiles2torch.lua');
+	end
 end
