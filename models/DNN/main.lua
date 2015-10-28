@@ -127,11 +127,9 @@ criterion = nn.ClassNLLCriterion(classWeights)
 print(model)
 
 -- 3.	COMPUTATION SETTINGS
-torch.manualSeed(params.seed)
 cutorch.setDevice(params.gpu)
 cutorch.manualSeed(params.seed, params.gpu)
-torch.setnumthreads(16)
-
+torch.manualSeed(params.seed)
 if params.cpu==false then
 	criterion:cuda()
 	data.training.inputs = data.training.inputs:cuda()
@@ -143,6 +141,7 @@ if params.cpu==false then
 	model:cuda()
 end
 
+torch.setnumthreads(16)
 
 --4.	TRAINING / BACKPROPAGATION
 
@@ -236,7 +235,7 @@ function train(data, labels)
          -- evaluate function for complete mini batch
          local outputs = model:forward(inputs)
          local f = criterion:forward(outputs, targets:view(targets:size(1)))
-	 print(f)
+	 --print(f)
          -- estimate df/dW
          local df_do = criterion:backward(outputs, targets:view(targets:size(1)))
 
@@ -298,7 +297,10 @@ function test(data, labels, classes, testing)
       -- create mini batch
 --      local inputs = data:index(1,batchIndex):cuda()
       local inputs = data:index(1,batchIndex):view(batchIndex:size(1),data:size(2),data:size(3))
-      local targets = labels:index(1,batchIndex):view(batchIndex:size(1)):cuda()
+      local targets = labels:index(1,batchIndex):view(batchIndex:size(1))
+      if params.cpu==false then
+	      targets:cuda()
+      end
 
       -- test samples
       local preds = model:forward(inputs)
