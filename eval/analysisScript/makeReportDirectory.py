@@ -8,6 +8,7 @@ argsList = sys.argv
 csvFileName = argsList[1] 
 resultsFolderName = argsList[2]
 minmeanF1score = argsList[3]
+quantileToCompare = argsList[4]
 
 import os
 if hasHeader:
@@ -16,7 +17,7 @@ if hasHeader:
 os.system('mkdir '+resultsFolderName+'  > /dev/null 2>&1')
 csvFileName = 'noHeader'+csvFileName
 print(csvFileName)
-os.system('python fanovaPrintOutput.py '+csvFileName+' > ./'+resultsFolderName+'/variableImportances.txt')
+os.system('python fanovaPrintOutput.py '+csvFileName+' > ./'+resultsFolderName+'/variableImportances.txt'+' '+quantileToCompare)
 
 import matplotlib
 # Force matplotlib to not use any Xwindows backend.
