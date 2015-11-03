@@ -1,5 +1,6 @@
 args <- commandArgs(trailingOnly = TRUE)
 fileToRead<-(args[1])
-x = read.csv(fileToRead)
-x = x[, ncol(x)>0.4]
+minmeanF1score<-as.numeric(args[2])
+x = read.csv(fileToRead, sep=',')
+x = subset(x, x[,ncol(x)]>minmeanF1score) 
 write.table(x,paste('noHeader',fileToRead,sep=''),row.names=FALSE, col.names=FALSE,sep=',')

@@ -1,4 +1,4 @@
-#Usage: python CSVFILENAME RESULTSFOLDERNAME
+#Usage: python CSVFILENAME RESULTSFOLDERNAME MINF1SCORE
 #For now, the CSV file must have a header row, and be in the same directory as this file.
 hasHeader = True
 
@@ -7,10 +7,11 @@ import sys
 argsList = sys.argv
 csvFileName = argsList[1] 
 resultsFolderName = argsList[2]
+minmeanF1score = argsList[3]
 
 import os
 if hasHeader:
-    os.system("Rscript process.R "+csvFileName)
+    os.system("Rscript process.R "+csvFileName+" "+minmeanF1score)
 
 os.system('mkdir '+resultsFolderName+'  > /dev/null 2>&1')
 csvFileName = 'noHeader'+csvFileName
