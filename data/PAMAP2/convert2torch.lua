@@ -12,14 +12,19 @@ data={}
 data.classes={}
 data.training={}
 data.validation={}
+data.test={}
 --data.test={}
 
 --data.classes = torch.totable(loading.classes)[1]
+data.classes = torch.totable(loading.classes)[1]
 
 data.training.inputs = loading.trainingData
 data.training.targets=torch.squeeze(loading.trainingLabels)
 
 data.validation.inputs=loading.valData
 data.validation.targets=torch.squeeze(loading.valLabels)
+
+data.test.inputs=loading.testingData
+data.test.targets=torch.squeeze(loading.testingLabels)
 
 torch.save(params.saveAs, data)
