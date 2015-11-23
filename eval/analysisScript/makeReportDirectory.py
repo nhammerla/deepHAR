@@ -1,4 +1,4 @@
-#Usage: python CSVFILENAME RESULTSFOLDERNAME MINF1SCORE
+#Usage: python makeReportDirectory.py CSVFILENAME RESULTSFOLDERNAME MINF1SCORE QUANTILETOCOMPARE
 #For now, the CSV file must have a header row, and be in the same directory as this file.
 hasHeader = True
 

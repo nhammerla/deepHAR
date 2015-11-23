@@ -11,10 +11,16 @@ function [slidingWindows, labelsForWindows] = rollingWindows(matrix, labelsVecto
 	if size(matrix,2)==length(labelsVector);
 		matrix = matrix';
 	end
+	if size(matrix,1)~=length(labelsVector)
+		size(matrix,1)
+		length(labelsVector)
+	end
 	assert(size(matrix,1)==length(labelsVector), 'The labels vector should be the same size as the 1st dimension of training matrix, but is not');
 
-	maxPossibleNumOfWindows = length(labelsVector); 
-
+	%maxPossibleNumOfWindows = length(labelsVector); 
+	
+	numberOfRows=size(matrix,1);
+	maxPossibleNumOfWindows = ceil(1+(numberOfRows/stepSize));
 	%pre-allocate 3D array:
 	B=zeros(windowLength, size(matrix,2),maxPossibleNumOfWindows);
 	%NOTE: THIS IS DIFFERENT FORMmatrixT TO NILS' DATA.

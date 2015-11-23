@@ -213,7 +213,7 @@ function train(data, labels)
       if data:nDimension()==3 then  
             inputs = data:index(1,batchIndex):view(batchIndex:size(1),data:size(2),data:size(3))  
       end
-      local targets = = labels:index(1,batchIndex)
+      local targets = labels:index(1,batchIndex)
       
 	if params.cpu==false then
 		targets:cuda()

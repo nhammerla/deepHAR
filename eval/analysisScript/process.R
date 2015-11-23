@@ -1,5 +1,5 @@
 numColsAtEndToIgnore=0
-numColsAtBeginToIgnore=0
+numColsAtBeginToIgnore=1
 
 args <- commandArgs(trailingOnly = TRUE)
 fileToRead<-(args[1])
