@@ -27,7 +27,26 @@ s{7}=load([base 'subject107.dat']);
 s{8}=load([base 'subject108.dat']);
 s{9}=load([base 'subject109.dat']);
 
+%Select columns
+otherSensors=3;
+startingIndices = [4,21,38];
 
+accSensors = 2:4;
+gyroSensors= 8:10;
+magSensors = 11:13;
+
+measurementsForEachSensor=[accSensors, gyroSensors, magSensors];
+
+fun1 = @(startingIndex)(startingIndex + measurementsForEachSensor -1);
+columns = cell2mat(arrayfun(fun1, startingIndices, 'UniformOutput', false));
+columns=sort( [columns, otherSensors] );
+
+%Subset data columns:
+for i=1:9
+	subjectsData = s{i};
+	subjectsData=subjectsData(:,[1,2,columns]);
+	s{i} = subjectsData;
+end
 %Convert to single precision
 for i=1:9
 	s{i}=single(s{i});
@@ -85,9 +104,9 @@ if crossValidation
 
 else
 	%
-	trainingSubjects=[3,4,5,6,7,8,9]
-	validationSubjects=1
-	testSubjects=2
+	trainingSubjects=[1,2,3,4,7,8,9]
+	validationSubjects=5
+	testSubjects=6
 
 	trainingData=[];
 	for i=trainingSubjects
@@ -154,7 +173,7 @@ else
 		testingData = (testingData - repmat(colMeans, size(testingData,1),1)) ./ repmat(colStds, size(testingData,1), 1);
 	testingData(isnan(testingData)) = 0;
 end
-
+%Make torch file WITH sliding windows
 	if makeSlidingWindows
 			[trainingData, trainingLabels] = rollingWindows(trainingData, trainingLabels, stepSize, windowSize);
 			[valData, valLabels] = rollingWindows(valData, valLabels, stepSize, windowSize);
@@ -176,6 +195,7 @@ end
 			testTF1=testingLabels==ClassToRemove;
 			testingData(:,:,testTF1)=[];
 			testingLabels(testTF1,:)=[];
+%Make torch file WITHOUT sliding windows
 	else
 			%Transpose stuff to be same as other Torch data:
 			trainingData=trainingData';
