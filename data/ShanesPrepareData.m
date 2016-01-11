@@ -2,13 +2,13 @@ clear;
 
 %OPTIONS:
 normalize = true; %Dividing by 1000
-makeMeanFeatures = true;
+makeMeanFeatures = false;
 convertToTorch = true;
 allSubjects = true;
 IMUsOnly = true;
-makeSlidingWindows = false;
-stepSize = 15;
-windowSize = 30;
+makeSlidingWindows = true;
+stepSize = 10;
+windowSize = 10;
 
 %Be sure to cd into this directory first!
 %base='../../dataset/';

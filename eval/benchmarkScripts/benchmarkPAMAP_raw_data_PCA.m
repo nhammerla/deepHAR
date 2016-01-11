@@ -9,7 +9,7 @@ addpath('/home/shane/deepHAR/data/');
 %testingLabels = trainingLabels(7001:end,:);
 %trainingData = trainingData(:,:,1:7000);
 %trainingLabels = trainingLabels(1:7000,:);
-​
+
 subsample = @(matrix)(matrix(:,1:3:end,:));
 reshapeDim2 = @(matrix)(reshape(matrix, size(matrix,1)*size(matrix,2), size(matrix,3)));
 process = @(matrix)(reshapeDim2(subsample(matrix))');
