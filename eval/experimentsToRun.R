@@ -15,7 +15,7 @@ discreteLogUniform	<- function(n, a, b)	{ ceiling(logUniform(n, a-1, b)) }
 newHyperparamComb <- function(networkType, n){
 	if(networkType=="DNN"){
 	print('deep nn')#debug
-	  numLayers 		= discreteUniform(n,1,10)
+	  numLayers 		= discreteUniform(n,1,5)
 	  layerSize 		= discreteLogUniform(n,128,2048)
 	  learningRate 		= logUniform(n,0.001,1) #Changed
 	  dropout 		= logUniform(n,0.01, 0.5)
