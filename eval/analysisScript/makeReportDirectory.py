@@ -17,7 +17,6 @@ def headerList(csvFileName):
     file1.close()
     return headers
 
-
 import sys
 
 argsList = sys.argv
@@ -67,7 +66,11 @@ print(params)
 #For Continuous and Integer Parameters:
 for (paramX, param_desc) in params:
         print('creating %s'%param_desc+','+paramX)
-        plt2 = vis.plot_marginal(paramX)
+        #If it needs to be log scale on the X axis:
+        if param_desc in ['momentum','learningRate','learningRateDecay']:
+            plt2 = vis.plot_marginal(paramX, log_scale=True)
+        else:
+            plt2 = vis.plot_marginal(paramX)
         plt2.xlabel(param_desc)
         plt2.savefig('./'+resultsFolderName+'/'+param_desc+'.jpg')
         plt2.clf()
