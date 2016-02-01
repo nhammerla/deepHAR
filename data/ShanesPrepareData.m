@@ -6,7 +6,7 @@ makeMeanFeatures = false;
 convertToTorch = true;
 allSubjects = true;
 IMUsOnly = true;
-makeSlidingWindows = true;
+makeSlidingWindows = false;
 stepSize = 10;
 windowSize = 10;
 
@@ -18,7 +18,8 @@ addpath(genpath('~/OpportunityUCIDataset/scripts/'))
 selectedCol = [2:46 51:59 64:72 77:85 90:98 103:134 250];
 
 if IMUsOnly
-	selectedCol = [38:48 51:59 64:72 77:85 90:98 103:134 250];
+%selectedCol = [38:48 51:59 64:72 77:85 90:98 103:134 250];
+	selectedCol = [38:46 51:59 64:72 77:85 90:98 103:134 250];
 end
 
 if allSubjects
