@@ -1,3 +1,4 @@
+getwd()
 #Example usage: Rscript find-and-replace.R /home/shane/deepHAR/eval/analysisScript/18janfANOVAresults/18janPAMAPRNNSBS4/variableImportances.txt /data/EXP/CSV/PAMAP2/rnnsbs.csv
 #rm(list = ls())
 
@@ -10,11 +11,11 @@ csvWithVarNamesPath = args[2]#"/Users/shanework/Desktop/hulk/data/EXP/CSV/PAMAP2
 file1 = file(description = textToProcessPath, open='r' )
 ignore = readLines(file1, 4)
 
-
-mainEffectsString = readLines(file1, 1)
-pairwiseInteractionEffectsString = readLines(file1,1)
 restOfOutput = readLines(file1)
-restOfOutput = restOfOutput[3:100]
+#mainEffectsString = readLines(file1, 1)
+#pairwiseInteractionEffectsString = readLines(file1,1)
+#restOfOutput = readLines(file1)
+#restOfOutput = restOfOutput[3:100]
 
 
 varNames = names(read.csv(csvWithVarNamesPath)) 
@@ -24,8 +25,8 @@ i=0:(length(varNames)-1)
 Xs = paste('X',i,sep='')
 length(varNames)
 length(Xs)
-varNames
-Xs
+varNames=rev(varNames)
+Xs=rev(Xs)
 for (i in 1:length(restOfOutput)){
 	  restOfOutput[i] = paste0(restOfOutput[i],'\n')
 }
@@ -42,4 +43,4 @@ for(i in 1:length(restOfOutput)){
   }
 }
 #cat(restOfOutput)
-write((restOfOutput), file='ans.txt')
+write(restOfOutput, file=paste0(textToProcessPath, 'replaced.txt'))
