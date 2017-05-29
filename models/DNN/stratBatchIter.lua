@@ -12,7 +12,6 @@ function stratBatchIter(targets, approxBatchsize)
 	    batches[i] = {}
 	end
 
-
 	-- assign a batch-id to each sample
 	for i=1,ind:size(1) do
 		-- assign elements in ascending order to batches

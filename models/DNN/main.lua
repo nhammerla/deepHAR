@@ -6,13 +6,12 @@ to see additional parameters:
 >> th main.lua --help
 ]]
 
-require 'cunn'
 require 'nn'
-require 'cutorch'
 require 'stratBatchIter'
 require 'meanF1score'
 require 'optim'
-
+require 'hdf5'
+json = require 'json'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -22,8 +21,8 @@ cmd:text()
 cmd:text('Options')
 cmd:option('-seed',                   123,    'initial random seed')
 cmd:option('-logdir',                 'exp',  'path to store model progress, results, and log file')
-cmd:option('-datafile',                   'opp1.dat',     'data-set to run on (DP datasource)')
-cmd:option('-gpu',                    1,      'GPU to run on (default: 1)') -- NOTE:1
+cmd:option('-data',                   'opp1.dat',     'data-set to run on (DP datasource)')
+cmd:option('-gpu',                    0,      'GPU to run on (default: 1)') -- NOTE:1
 cmd:option('-cpu',                    false,  'Run on CPU')
 cmd:option('-numLayers',              1,      'Number of hidden layers')
 cmd:option('-layerSize',              512,    'Number of units in hidden layers')
@@ -43,43 +42,21 @@ cmd:text()
 
 -- parse input params
 params = cmd:parse(arg)
-print(params.datafile)
+print(params.data)
+if not params.cpu then
+    require 'cutorch'
+    require 'cunn'
+    cutorch.setDevice(params.gpu)
+    cutorch.manualSeed(params.seed, params.gpu)
+end
 
-
-
---This can be replaced by command line parameters:
---params={}
--- 1.	Parameters about filesystem:
---params.datafile = 'opp2.dat'
---params.logdir = 'exp'
--- 2.	Parameters for defining model:
---params.numLayers = 3 --changed
---params.layerSize = 512 --changed
---params.dropout=0.5
---params.maxInNorm = 2
---params.maxOutNorm = 0.5 -- NOT IMPLEMENTED
--- 3.	Parameters related to computation
---params.cpu = false
---params.seed=1
---params.gpu= 1
----- 4.	Parameters related to model training/backpropagation:
---params.batchSize = 64
---params.learningRate = 0.1
---params.momentum = 0.9
---params.learningRateDecay = 5e-5
---params.patience = 50 -- changed
---params.minEpoch = 100 --changed
---params.maxEpoch = 1000 --changed
---params.batchSize = 64
-----params.stepSize = 8
----- 5.	Parameters related to class selection
---params.ignore = false
---params.ignoreClass = 0
---params.classWeights = '' -- Won't run while this is here?
---end
+paths.mkdir(params.logdir)
 
 -- 1.	FILESYSTEM: IMPORT DATA
-data = torch.load(params.datafile)
+f = hdf5.open(params.data, 'r')
+data = f:read('/'):all()
+f:close()
+data.classes = json.load(params.data .. '.classes.json')
 
 setmetatable(data.training, 
     {__index = function(t, i) 
@@ -103,6 +80,8 @@ if data.training.inputs:size():size()==3 then
 	inputLayerSize = data.training.inputs:size(2)*data.training.inputs:size(3)
 	model:add(nn.Reshape(inputLayerSize))
 	firstLayer = nn.Linear(inputLayerSize, params.layerSize)
+else
+    firstLayer = nn.Linear(data.training.inputs:size(2), params.layerSize)
 end
 
 model:add(firstLayer)
@@ -127,21 +106,20 @@ criterion = nn.ClassNLLCriterion(classWeights)
 print(model)
 
 -- 3.	COMPUTATION SETTINGS
-cutorch.setDevice(params.gpu)
-cutorch.manualSeed(params.seed, params.gpu)
 torch.manualSeed(params.seed)
+torch.setnumthreads(16)
+
 if params.cpu==false then
 	criterion:cuda()
 	data.training.inputs = data.training.inputs:cuda()
 	data.test.inputs = data.test.inputs:cuda()
 	data.validation.inputs = data.validation.inputs:cuda()
-	data.training.targets=data.training.targets:cuda()
-	data.test.targets=data.test.targets:cuda()
-	data.validation.targets=data.validation.targets:cuda()
+	data.training.targets = data.training.targets:cuda()
+	data.test.targets = data.test.targets:cuda()
+	data.validation.targets = data.validation.targets:cuda()
 	model:cuda()
 end
 
-torch.setnumthreads(16)
 
 --4.	TRAINING / BACKPROPAGATION
 
@@ -153,9 +131,6 @@ parameters:uniform(-0.08,0.08)
 
 -- helper functions
 batchIter = stratBatchIter
-if params.imbalanced then
-    batchIter = stratBatchIterRepeated
-end
 
 -- max in norm
 renormW = function(mod)
@@ -213,11 +188,12 @@ function train(data, labels)
       if data:nDimension()==3 then  
             inputs = data:index(1,batchIndex):view(batchIndex:size(1),data:size(2),data:size(3))  
       end
-      local targets = labels:index(1,batchIndex)
-      
 	if params.cpu==false then
-		targets:cuda()
+     	targets = labels:index(1,batchIndex):cuda()
+	else 
+		targets = labels:index(1,batchIndex)
 	end
+
       -- create closure to evaluate f(X) and df/dX
       local feval = function(x)
          -- just in case:
@@ -297,8 +273,8 @@ function test(data, labels, classes, testing)
 --      local inputs = data:index(1,batchIndex):cuda()
       local inputs = data:index(1,batchIndex):view(batchIndex:size(1),data:size(2),data:size(3))
       local targets = labels:index(1,batchIndex):view(batchIndex:size(1))
-      if params.cpu==false then
-	      targets:cuda()
+      if not params.cpu then
+        local targets = targets:cuda()
       end
 
       -- test samples
